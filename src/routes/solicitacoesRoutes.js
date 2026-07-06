@@ -1,4 +1,4 @@
-// routes/solicitacoesRoutes.js
+// src/routes/solicitacoesRoutes.js
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase'); // Importa a conexão com o banco
@@ -16,9 +16,13 @@ router.post('/nova', async (req, res) => {
       .from('solicitacoes')
       .insert([{
         id: psId,
-        tipo: 'Material', // Podemos tornar dinâmico depois
+        tipo: 'Material', 
+        nome_solicitante: solicitante.nome,                  // <-- ADICIONADO: Nome
         wbs_destino: solicitante.wbs,
+        destino: solicitante.destino || null,                // <-- ADICIONADO: Destino (MaterialEstoque)
+        data_necessidade: solicitante.dataNecessidade || null, // <-- ADICIONADO: Data (MaterialEstoque)
         observacoes: solicitante.observacoes,
+        entrega_urgente: solicitante.entregaUrgente || false, // <-- ADICIONADO: Checkbox do Raio
         status: 'Pendente'
       }]);
 
@@ -30,7 +34,7 @@ router.post('/nova', async (req, res) => {
       desenho_sap_manual: item.desenhoSAP,
       part_number_manual: item.numPecaFabricante,
       descricao_manual: item.materialDescription,
-      quantidade_solicitada: item.qtdSelecionada || item.qtd,
+      quantidade_solicitada: item.qtdSelecionada || item.qtd, // Agora funciona perfeitamente!
       unidade_medida_manual: item.unidadeMedida || item.unid,
       valor_unitario_manual: parseFloat(String(item.poNetPrice || item.valorUnit).replace(/[^\d.,]/g, '').replace(',', '.')) || 0
     }));
