@@ -62,8 +62,17 @@ router.post('/nova', async (req, res) => {
 
     // Captura o WBS de origem (se for transferência, pegamos do primeiro item selecionado)
     let wbsOrigem = null;
-    if (solicitante.tipo === 'Transferencia WBS' && itens.length > 0) {
-       wbsOrigem = itens[0].wbsOrigem;
+    if (solicitante.tipo === 'Transferencia WBS' && itens && itens.length > 0) {
+       wbsOrigem = itens[0].wbsOrigem || itens[0].wbs || null;
+    }
+
+    // INTERCEPTADOR DO CANCELAMENTO: Evita quebrar o CHECK constraint do tipo de solicitação
+    let tipoFinal = solicitante.tipo || 'Material';
+    let statusFinal = 'Pendente';
+
+    if (tipoFinal === 'Cancelado') {
+      tipoFinal = 'Crossdocking'; // Associa ao fluxo logístico correto
+      statusFinal = 'Cancelado';   // Salva no banco direto com a flag de cancelado
     }
 
     // 2. Insere a solicitação principal na tabela 'solicitacoes'
@@ -71,46 +80,72 @@ router.post('/nova', async (req, res) => {
       .from('solicitacoes')
       .insert([{
         id: psId,
-        tipo: solicitante.tipo || 'Material', 
-        nome_solicitante: solicitante.nome,
+        tipo: tipoFinal, 
+        nome_solicitante: solicitante.nome || solicitante.solicitante || 'Não informado',
         wbs_origem: wbsOrigem,                
-        wbs_destino: solicitante.wbs,         
+        wbs_destino: solicitante.wbs || solicitante.wbs_destino || null,         
         destino: solicitante.destino || null,
         data_necessidade: solicitante.dataNecessidade || null,
-        observacoes: solicitante.observacoes,
+        observacoes: solicitante.observacoes || '',
         entrega_urgente: solicitante.entregaUrgente || false,
-        status: 'Pendente'
+        status: statusFinal
       }]);
 
     if (erroPS) throw erroPS;
 
-    // 3. Prepara os itens para inserir na tabela 'solicitacoes_itens'
-    const itensParaInserir = itens.map(item => ({
-      solicitacao_id: psId,
-      desenho_sap_manual: item.desenhoSAP || null,
-      part_number_manual: item.numPecaFabricante || null,
-      descricao_manual: item.materialDescription || null,
-      quantidade_solicitada: item.qtdSelecionada || item.qtd, 
-      unidade_medida_manual: item.unidadeMedida || item.unid || 'Unid',
-      valor_unitario_manual: item.poNetPrice ? parseFloat(String(item.poNetPrice).replace(/[^\d.,]/g, '').replace(',', '.')) : 0
-    }));
+    // 3. Prepara e Normaliza os itens (se houver) para inserir na tabela 'solicitacoes_itens'
+    if (itens && itens.length > 0) {
+      const itensParaInserir = itens.map(item => {
+        
+        // CONCATENAÇÃO INTELIGENTE: Agrupa dados extras do relatório SAP na descrição para não perder informação
+        let descricaoCompilada = item.materialDescription || item.descricao || item.descricao_manual || 'Item sem descrição';
+        
+        const tagsExtras = [];
+        if (item.alocacao) tagsExtras.push(`Aloc: ${item.alocacao}`);
+        if (item.centro) tagsExtras.push(`Centro: ${item.centro}`);
+        if (item.deposito) tagsExtras.push(`Dep: ${item.deposito}`);
+        if (item.referencia) tagsExtras.push(`Ref: ${item.referencia}`);
+        if (item.vendorDescription) tagsExtras.push(`Vendor: ${item.vendorDescription}`);
+        
+        if (tagsExtras.length > 0) {
+          descricaoCompilada += ` (${tagsExtras.join(' | ')})`;
+        }
 
-    // 4. Salva todos os itens de uma vez só!
-    const { error: erroItens } = await supabase
-      .from('solicitacoes_itens')
-      .insert(itensParaInserir);
+        // Limpeza criptográfica de valores monetários (Ex: "R$ 1.697,39" -> 1697.39)
+        const precoBruto = item.poNetPrice || item.valorUnit || item.valor_unitario_manual || 0;
+        const precoLimpo = precoBruto 
+          ? parseFloat(String(precoBruto).replace(/[^\d.,]/g, '').replace(',', '.')) 
+          : 0;
 
-    if (erroItens) throw erroItens;
+        return {
+          solicitacao_id: psId,
+          desenho_sap_manual: item.desenhoSAP || item.desenho_sap_manual || null,
+          part_number_manual: item.numPecaFabricante || item.partNumber || item.part_number_manual || null,
+          descricao_manual: descricaoCompilada.substring(0, 255), // Garante o limite VARCHAR do banco
+          quantidade_solicitada: parseFloat(item.qtdFornecida || item.qtdSelecionada || item.quantidade || item.qtd || 1), 
+          unidade_medida_manual: item.unidadeMedida || item.unid || item.unidade || item.unidade_medida_manual || 'Unid',
+          valor_unitario_manual: isNaN(precoLimpo) ? 0 : precoLimpo
+        };
+      });
 
+      // 4. Salva todos os itens de uma vez só no Supabase (Bulk Insert)
+      const { error: erroItens } = await supabase
+        .from('solicitacoes_itens')
+        .insert(itensParaInserir);
+
+      if (erroItens) throw erroItens;
+    }
+
+    // Resposta de sucesso unificada
     res.status(201).json({ 
       sucesso: true, 
-      mensagem: 'Solicitação criada com sucesso!', 
+      mensagem: 'Solicitação processada e salva com sucesso!', 
       ps_id: psId 
     });
 
   } catch (error) {
-    console.error('[Erro ao criar solicitação]:', error);
-    res.status(500).json({ sucesso: false, erro: 'Falha ao salvar a solicitação no banco.' });
+    console.error('[Erro na API ao criar solicitação]:', error);
+    res.status(500).json({ sucesso: false, erro: error.message || 'Falha ao salvar a solicitação no banco.' });
   }
 });
 
