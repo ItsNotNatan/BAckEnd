@@ -2,12 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase'); 
-const verificarToken = require('../middlewares/authMiddleware'); // <-- IMPORTANDO O MIDDLEWARE
 
 // ==========================================================
-// 🚀 ROTA GET: Listar todas as solicitações para a tabela (PROTEGIDA)
+// 🚀 ROTA GET: Listar todas as solicitações para a tabela
 // ==========================================================
-router.get('/listar', verificarToken, async (req, res) => {
+router.get('/listar', async (req, res) => {
   try {
     const { data: solicitacoes, error } = await supabase
       .from('solicitacoes')
@@ -49,9 +48,9 @@ router.get('/listar', verificarToken, async (req, res) => {
 });
 
 // ==========================================================
-// 📥 ROTA POST: Criar uma nova Solicitação (PS) (PROTEGIDA)
+// 📥 ROTA POST: Criar uma nova Solicitação (PS)
 // ==========================================================
-router.post('/nova', verificarToken, async (req, res) => {
+router.post('/nova', async (req, res) => {
   const { solicitante, itens } = req.body;
 
   try {
@@ -81,7 +80,7 @@ router.post('/nova', verificarToken, async (req, res) => {
       .from('solicitacoes')
       .insert([{
         id: psId,
-        usuario_id: req.usuario.sub, // <-- SALVA O ID DO USUÁRIO LOGADO NO BANCO!
+        usuario_id: null, // <-- DEIXAMOS NULL PARA TESTES, já que tiramos o token!
         tipo: tipoFinal, 
         nome_solicitante: solicitante.nome || solicitante.solicitante || 'Não informado',
         wbs_origem: wbsOrigem,                
