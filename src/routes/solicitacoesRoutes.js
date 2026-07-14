@@ -16,5 +16,6 @@ router.post('/crossdocking', ctrl.criarCrossdocking);
 router.post('/nota-fiscal', ctrl.criarNotaFiscal);
 router.post('/reintegracao', ctrl.criarReintegracao);
 router.post('/cancelamento', ctrl.cancelarBS);
+router.patch('/:id/status', ctrl.atualizarStatus);
 
 module.exports = router;

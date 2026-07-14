@@ -11,6 +11,8 @@ const listar = async (req, res) => {
   }
 };
 
+
+
 // Funções criadoras modulares (Tratam o Sucesso e o Erro HTTP automaticamente)
 const criarResposta = (res, promessaID) => {
   promessaID.then(id => res.status(201).json({ sucesso: true, ps_id: id }))
@@ -29,6 +31,21 @@ const criarNotaFiscal = (req, res) => criarResposta(res, service.criarNotaFiscal
 const criarReintegracao = (req, res) => criarResposta(res, service.criarReintegracao(req.body.solicitante, req.body.anexos));
 const cancelarBS = (req, res) => criarResposta(res, service.cancelarBS(req.body.solicitante, req.body.anexos));
 
+// 👇 NOVA FUNÇÃO: Atualizar Status
+const atualizarStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status, motivo_recusa } = req.body;
+
+  try {
+    await service.atualizarStatus(id, status, motivo_recusa);
+    res.status(200).json({ sucesso: true, mensagem: `Status atualizado para ${status}` });
+  } catch (error) {
+    console.error(`[Erro ao atualizar status da PS ${id}]:`, error);
+    res.status(500).json({ sucesso: false, erro: 'Falha ao atualizar o status na base de dados.' });
+  }
+};
+
+// Lembra-te de exportar a nova função no final!
 module.exports = {
   listar,
   criarMaterial,
@@ -37,5 +54,6 @@ module.exports = {
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,
-  cancelarBS
+  cancelarBS,
+  atualizarStatus // 👈 NÃO ESQUECER ISTO AQUI!
 };

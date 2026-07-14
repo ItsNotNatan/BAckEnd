@@ -209,6 +209,48 @@ const cancelarBS = async (solicitante, anexos) => {
   return await salvarNoBanco(dados, [], anexos);
 };
 
+// =========================================================
+// 🔄 ATUALIZAÇÃO DE STATUS E GERAÇÃO AUTOMÁTICA DE BS
+// =========================================================
+const atualizarStatus = async (id, novoStatus, motivoRecusa) => {
+  
+  // 1. Prepara a atualização da Solicitação
+  let atualizacaoPS = { status: novoStatus, updated_at: new Date() };
+
+  // Se foi recusado, guardamos o motivo nas observações para não perder o histórico
+  if (motivoRecusa) {
+    const { data: sol } = await supabase.from('solicitacoes').select('observacoes').eq('id', id).single();
+    const obsAntiga = sol?.observacoes || '';
+    atualizacaoPS.observacoes = `${obsAntiga}\n[RECUSADO]: ${motivoRecusa}`.trim();
+  }
+
+  // Atualiza a PS no banco
+  const { error: erroPS } = await supabase
+    .from('solicitacoes')
+    .update(atualizacaoPS)
+    .eq('id', id);
+
+  if (erroPS) throw erroPS;
+
+  // 2. SE FOI APROVADO, GERA O BS AUTOMATICAMENTE!
+  if (novoStatus === 'Em Separação') {
+    const { error: erroBS } = await supabase
+      .from('boletins_saida')
+      .insert([{ 
+        solicitacao_id: id, 
+        status: 'Em Separação'
+        // NOTA: Assumo que alteraste o 'id' do boletim_saida para 'numero_bs SERIAL' no SQL
+        // como te aconselhei antes. Assim, o banco cria o número sozinho!
+      }]);
+
+    // O código 23505 significa que já existe (para evitar duplicações caso alguém clique 2x)
+    if (erroBS && erroBS.code !== '23505') throw erroBS;
+  }
+
+  return true;
+};
+
+// Não esquecer de exportar!
 module.exports = {
   listarSolicitacoes,
   criarMaterial,
@@ -217,5 +259,6 @@ module.exports = {
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,
-  cancelarBS
+  cancelarBS,
+  atualizarStatus // 👈 ADICIONA AQUI!
 };
