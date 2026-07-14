@@ -45,8 +45,7 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
 const listarSolicitacoes = async () => {
   const { data, error } = await supabase
     .from('solicitacoes')
-    // 👇 CORREÇÃO 1: Pedimos o 'numero_bs' em vez do 'id' para a tabela boletins_saida
-    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), anexos (nome_arquivo, url_arquivo)`)
+    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), anexos (nome_arquivo, url_arquivo), solicitacoes_itens (*)`)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -57,14 +56,17 @@ const listarSolicitacoes = async () => {
     solicitante: sol.nome_solicitante || 'Não informado',
     wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
     
-    // 👇 CORREÇÃO 2: Lemos o 'numero_bs' para montar a etiqueta do BS
     bs: sol.boletins_saida && sol.boletins_saida.length > 0 ? `BS #${sol.boletins_saida[0].numero_bs}` : null,
     
     dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
     status: sol.status,
+    observacoes: sol.observacoes, // 👈 Importante para a gaveta conseguir ler a observação
     entregaUrgente: sol.entrega_urgente,
-    anexos: sol.anexos || [] 
+    anexos: sol.anexos || [],
+    
+    // 👇 E A GRANDE MÁGICA AQUI: O React finalmente vai receber os itens!
+    itens: sol.solicitacoes_itens || [] 
   }));
 };
 
