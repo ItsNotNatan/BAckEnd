@@ -50,24 +50,39 @@ const listarSolicitacoes = async () => {
 
   if (error) throw error;
 
-  return data.map(sol => ({
-    id: sol.id,
-    tipo: sol.tipo,
-    solicitante: sol.nome_solicitante || 'Não informado',
-    wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
+  return data.map(sol => {
     
-    bs: sol.boletins_saida && sol.boletins_saida.length > 0 ? `BS #${sol.boletins_saida[0].numero_bs}` : null,
-    
-    dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
-    status: sol.status,
-    observacoes: sol.observacoes, // 👈 Importante para a gaveta conseguir ler a observação
-    entregaUrgente: sol.entrega_urgente,
-    anexos: sol.anexos || [],
-    
-    // 👇 E A GRANDE MÁGICA AQUI: O React finalmente vai receber os itens!
-    itens: sol.solicitacoes_itens || [] 
-  }));
+    // 👇 A MÁGICA DA CORREÇÃO: Lemos o BS de forma inteligente
+    let numeroBS = null;
+    if (sol.boletins_saida) {
+      // Se vier como Array (lista)
+      if (Array.isArray(sol.boletins_saida) && sol.boletins_saida.length > 0) {
+        numeroBS = sol.boletins_saida[0].numero_bs;
+      } 
+      // Se vier como Objeto único (O novo padrão do Supabase graças ao UNIQUE)
+      else if (!Array.isArray(sol.boletins_saida) && sol.boletins_saida.numero_bs) {
+        numeroBS = sol.boletins_saida.numero_bs;
+      }
+    }
+
+    return {
+      id: sol.id,
+      tipo: sol.tipo,
+      solicitante: sol.nome_solicitante || 'Não informado',
+      wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
+      
+      // 👇 Usamos a variável inteligente que criámos acima
+      bs: numeroBS ? `BS #${numeroBS}` : null, 
+      
+      dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
+      status: sol.status,
+      observacoes: sol.observacoes, 
+      entregaUrgente: sol.entrega_urgente,
+      anexos: sol.anexos || [],
+      itens: sol.solicitacoes_itens || [] 
+    };
+  });
 };
 
 const criarMaterial = async (solicitante, itens, anexos) => {
