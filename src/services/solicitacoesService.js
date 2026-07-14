@@ -45,7 +45,8 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
 const listarSolicitacoes = async () => {
   const { data, error } = await supabase
     .from('solicitacoes')
-    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (id)`)
+    // 👇 MUDANÇA 1: Adicionamos "anexos (nome_arquivo, url_arquivo)" no final do select
+    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (id), anexos (nome_arquivo, url_arquivo)`)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -59,7 +60,8 @@ const listarSolicitacoes = async () => {
     dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
     status: sol.status,
-    entregaUrgente: sol.entrega_urgente
+    entregaUrgente: sol.entrega_urgente,
+    anexos: sol.anexos || [] 
   }));
 };
 
