@@ -22,4 +22,6 @@ router.post('/:id/anexos', ctrl.adicionarAnexosExtras);
 
 router.patch('/:id/status', ctrl.atualizarStatus);
 
+// 👇 Adiciona junto das tuas outras rotas (perto da rota POST de anexos que fizemos antes)
+router.delete('/anexo/:anexoId', ctrl.removerAnexo);
 module.exports = router;

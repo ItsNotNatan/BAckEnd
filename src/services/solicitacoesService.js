@@ -42,11 +42,15 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
 // 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
 // =========================================================
 
+// Dentro da função listarSolicitacoes, atualiza o .select para este:
 const listarSolicitacoes = async () => {
   const { data, error } = await supabase
     .from('solicitacoes')
-    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), anexos (nome_arquivo, url_arquivo), solicitacoes_itens (*)`)
+    // 👇 ADICIONAMOS O 'id' e a 'origem' DENTRO DOS ANEXOS
+    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)`)
     .order('created_at', { ascending: false });
+    
+  // ... resto do código mantém-se igual ...
 
   if (error) throw error;
 
@@ -289,6 +293,25 @@ const salvarAnexosExtras = async (solicitacaoId, anexosArray) => {
   return true;
 };
 
+const deletarAnexo = async (anexoId) => {
+  // 1. Busca os dados do anexo para sabermos a URL no Storage
+  const { data: anexo } = await supabase.from('anexos').select('*').eq('id', anexoId).single();
+  
+  if (anexo && anexo.url_arquivo) {
+    // 2. Extrai o caminho físico e apaga do bucket 'documentos'
+    const urlParts = anexo.url_arquivo.split('/documentos/');
+    if (urlParts.length > 1) {
+      await supabase.storage.from('documentos').remove([urlParts[1]]);
+    }
+  }
+
+  // 3. Apaga a linha da base de dados
+  const { error } = await supabase.from('anexos').delete().eq('id', anexoId);
+  if (error) throw error;
+  
+  return true;
+};
+
 // Certifica-te de atualizar o module.exports no final do ficheiro para incluir a nova função:
 module.exports = {
   listarSolicitacoes,
@@ -300,5 +323,6 @@ module.exports = {
   criarReintegracao,
   cancelarBS,
   atualizarStatus,
+  deletarAnexo,
   salvarAnexosExtras // 👈 ADICIONADO AQUI!
 };

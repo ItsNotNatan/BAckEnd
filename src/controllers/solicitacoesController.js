@@ -58,6 +58,18 @@ const adicionarAnexosExtras = async (req, res) => {
   }
 };
 
+// 👇 Adiciona antes do module.exports
+const removerAnexo = async (req, res) => {
+  const { anexoId } = req.params;
+  try {
+    await service.deletarAnexo(anexoId);
+    res.status(200).json({ sucesso: true, mensagem: 'Anexo removido com sucesso.' });
+  } catch (error) {
+    console.error(`[Erro ao deletar anexo ${anexoId}]:`, error);
+    res.status(500).json({ sucesso: false, erro: 'Falha ao remover o anexo.' });
+  }
+};
+
 module.exports = {
   listar,
   criarMaterial,
@@ -68,5 +80,6 @@ module.exports = {
   criarReintegracao,
   cancelarBS,
   atualizarStatus,
+  removerAnexo,
   adicionarAnexosExtras
 };
