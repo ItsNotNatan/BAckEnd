@@ -1,0 +1,141 @@
+/* Ficheiro: SelecionarFilial.css */
+
+.selecionar-filial-container {
+  min-height: 100vh;
+  background-color: #f4f5f7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1.5rem; /* Reduzi um pouco o topo para acomodar o botão de voltar */
+  font-family: 'Inter', sans-serif;
+}
+
+/* NOVO: Botão de voltar */
+.btn-voltar-areas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0;
+  margin-bottom: 2rem;
+  align-self: flex-start;
+  transition: color 0.2s;
+  width: 100%;
+  max-width: 42rem;
+}
+
+.btn-voltar-areas:hover {
+  color: #1e293b;
+}
+
+.cabecalho-filial {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.icone-topo-container {
+  background-color: #e0e7ff;
+  color: #3b82f6;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem auto;
+}
+
+.titulo-filial {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.subtitulo-filial {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.lista-filiais {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 42rem;
+}
+
+.cartao-filial {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.cartao-filial:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.bloco-icone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid;
+}
+
+.bloco-azul { background-color: #eff6ff; border-color: #bfdbfe; color: #3b82f6; }
+.bloco-roxo { background-color: #faf5ff; border-color: #e9d5ff; color: #a855f7; }
+
+.texto-sigla {
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-top: 0.1rem;
+}
+
+.info-filial {
+  flex-grow: 1;
+  margin-left: 1.5rem;
+}
+
+.nome-filial {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.local-filial {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-top: 0.2rem;
+}
+
+.acao-filial {
+  display: flex;
+  align-items: center;
+}
+
+.ponto-status {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  margin-right: 1rem;
+}
+
+.ponto-azul { background-color: #3b82f6; }
+.ponto-roxo { background-color: #a855f7; }
+
+.icone-seta { color: #9ca3af; }
