@@ -270,7 +270,26 @@ const atualizarStatus = async (id, novoStatus, motivoRecusa) => {
   return true;
 };
 
-// Não esquecer de exportar!
+// Adiciona esta nova função antes do module.exports no ficheiro src/services/solicitacoesService.js
+
+const salvarAnexosExtras = async (solicitacaoId, anexosArray) => {
+  if (!anexosArray || anexosArray.length === 0) return false;
+
+  // Mapeamos os anexos injetando a origem como 'logistica' para o componente saber diferenciar
+  const anexosParaInserir = anexosArray.map(anexo => ({
+    solicitacao_id: solicitacaoId,
+    nome_arquivo: anexo.nome_arquivo,
+    url_arquivo: anexo.url_arquivo,
+    origem: 'logistica' // 👈 Crucial para o teu filtro do frontend funcionar perfeitamente!
+  }));
+
+  const { error } = await supabase.from('anexos').insert(anexosParaInserir);
+  if (error) throw error;
+
+  return true;
+};
+
+// Certifica-te de atualizar o module.exports no final do ficheiro para incluir a nova função:
 module.exports = {
   listarSolicitacoes,
   criarMaterial,
@@ -280,5 +299,6 @@ module.exports = {
   criarNotaFiscal,
   criarReintegracao,
   cancelarBS,
-  atualizarStatus // 👈 ADICIONA AQUI!
+  atualizarStatus,
+  salvarAnexosExtras // 👈 ADICIONADO AQUI!
 };
