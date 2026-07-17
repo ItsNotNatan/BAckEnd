@@ -153,12 +153,24 @@ const criarEntrada = async (solicitante, itens, anexos) => {
     }
 
     return {
-      desenho_sap_manual: i.desenhoSAP,
+      // --- CAMPOS BASE ---
+      desenho_sap_manual: i.desenhoSAP || '-',
       part_number_manual: i.numPecaFabricante,
-      descricao_manual: i.materialDescription,
-      quantidade_solicitada: Math.max(1, i.qtd || 1),
-      unidade_medida_manual: i.unidadeMedida,
-      valor_unitario_manual: precoLimpo
+      descricao_manual: i.materialDescription || i.vendorDescription || 'Sem descrição',
+      quantidade_solicitada: Math.max(1, i.qtd || i.qtdFornecida || 1),
+      unidade_medida_manual: i.unidadeMedida || 'Unid',
+      valor_unitario_manual: precoLimpo,
+
+      // 👇 NOVOS CAMPOS SAP ADICIONADOS AQUI 👇
+      fornecedor: i.fornecedor || null,
+      nf_entrada: i.nfEntrada || null,
+      wbs_element: i.wbsElement || null,
+      emissao_nf: i.emissaoNF || null,
+      receb_nf: i.recebNF || null,
+      documento_compras: i.docCompras || null,
+      centro: i.centro || null,
+      deposito: i.deposito || null,
+      alocacao: i.alocacao || null
     };
   });
 
@@ -311,6 +323,8 @@ const deletarAnexo = async (anexoId) => {
   
   return true;
 };
+
+
 
 // Certifica-te de atualizar o module.exports no final do ficheiro para incluir a nova função:
 module.exports = {
