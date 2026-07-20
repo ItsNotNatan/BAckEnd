@@ -248,6 +248,9 @@ const cancelarBS = async (solicitante, anexos) => {
 // =========================================================
 // 🔄 ATUALIZAÇÃO DE STATUS E GERAÇÃO AUTOMÁTICA DE BS
 // =========================================================
+// =========================================================
+// 🔄 ATUALIZAÇÃO DE STATUS E MATEMÁTICA DE ESTOQUE
+// =========================================================
 const atualizarStatus = async (id, novoStatus, motivoRecusa) => {
   
   // 1. Prepara a atualização da Solicitação
@@ -268,19 +271,99 @@ const atualizarStatus = async (id, novoStatus, motivoRecusa) => {
 
   if (erroPS) throw erroPS;
 
-  // 2. SE FOI APROVADO, GERA O BS AUTOMATICAMENTE!
+  // 2. SE FOI APROVADO ('Em Separação' ou 'Concluído')
   if (novoStatus === 'Em Separação') {
+    
+    // A) Gera o BS Automaticamente
     const { error: erroBS } = await supabase
       .from('boletins_saida')
       .insert([{ 
         solicitacao_id: id, 
         status: 'Em Separação'
-        // NOTA: Assumo que alteraste o 'id' do boletim_saida para 'numero_bs SERIAL' no SQL
-        // como te aconselhei antes. Assim, o banco cria o número sozinho!
       }]);
 
-    // O código 23505 significa que já existe (para evitar duplicações caso alguém clique 2x)
     if (erroBS && erroBS.code !== '23505') throw erroBS;
+
+    // B) 🔥 NOVA LÓGICA: Automação do Estoque Físico
+    // Buscar o tipo da solicitação e filial para sabermos a regra de negócio
+    const { data: solicitacao } = await supabase
+      .from('solicitacoes')
+      .select('tipo, filial_origem_id')
+      .eq('id', id)
+      .single();
+
+    if (solicitacao) {
+      const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
+
+      // CASO 1: É UMA SAÍDA (Temos de abater o saldo)
+      if (tiposDeSaida.includes(solicitacao.tipo)) {
+        
+        // Vai buscar os itens com a chave mágica (estoque_id)
+        const { data: itensPedidos } = await supabase
+          .from('solicitacoes_itens')
+          .select('estoque_id, quantidade_solicitada')
+          .eq('solicitacao_id', id);
+
+        if (itensPedidos && itensPedidos.length > 0) {
+          for (const item of itensPedidos) {
+            // Só faz matemática se o item estiver corretamente lincado a um lote no estoque
+            if (item.estoque_id) {
+              const { data: estoqueAtual } = await supabase
+                .from('estoque')
+                .select('quantidade_disponivel')
+                .eq('id', item.estoque_id)
+                .single();
+
+              if (estoqueAtual) {
+                // Matemática de abatimento
+                const novoSaldo = estoqueAtual.quantidade_disponivel - item.quantidade_solicitada;
+                // Se o saldo acabar, vai direto para a Rastreabilidade como "Zerado"
+                const novoStatusEstoque = novoSaldo <= 0 ? 'Zerado' : 'Disponível';
+
+                // Salva a alteração na prateleira física
+                await supabase
+                  .from('estoque')
+                  .update({ 
+                    quantidade_disponivel: novoSaldo,
+                    status: novoStatusEstoque,
+                    updated_at: new Date()
+                  })
+                  .eq('id', item.estoque_id);
+              }
+            }
+          }
+        }
+      } 
+      
+      // CASO 2: É UMA ENTRADA (Temos de criar novos saldos na prateleira)
+      else if (solicitacao.tipo === 'Entrada') {
+        const { data: itensEntrada } = await supabase
+          .from('solicitacoes_itens')
+          .select('*')
+          .eq('solicitacao_id', id);
+
+        if (itensEntrada && itensEntrada.length > 0) {
+          // Converte os itens validados da "Entrada" em caixas físicas reais na tabela "estoque"
+          const novoEstoqueLotes = itensEntrada.map(item => ({
+            material_id: item.material_id || null, 
+            filial_id: solicitacao.filial_origem_id || 'BR06', // Se não houver filial atrelada à PS, usa fallback
+            nf_entrada: item.nf_entrada || 'SEM-NF',
+            documento_compras: item.documento_compras || '-',
+            wbs: item.wbs_element || '-',
+            alocacao: item.alocacao || 'Pendente',
+            quantidade_disponivel: item.quantidade_solicitada,
+            status: 'Disponível' // Novo material entra sempre disponível
+          }));
+
+          // Insere tudo de uma vez de forma eficiente
+          const { error: erroEstoque } = await supabase
+            .from('estoque')
+            .insert(novoEstoqueLotes);
+
+          if (erroEstoque) console.error("Erro ao gerar saldo de Entrada:", erroEstoque);
+        }
+      }
+    }
   }
 
   return true;
@@ -324,6 +407,50 @@ const deletarAnexo = async (anexoId) => {
   return true;
 };
 
+const reverterItemParaEstoque = async (idItem) => {
+  // 1. Busca qual foi a quantidade e o Part Number do item que saiu
+  const { data: itemPedido, error: erroBusca } = await supabase
+    .from('solicitacoes_itens')
+    .select('quantidade_solicitada, part_number_manual')
+    .eq('id', idItem)
+    .single();
+
+  if (erroBusca || !itemPedido) throw new Error('Item não encontrado na solicitação.');
+
+  // 2. Busca a prateleira deste material na tabela de estoque pelo Part Number
+  const { data: itemEstoque, error: erroEstoque } = await supabase
+    .from('estoque')
+    .select('id, quantidade_disponivel')
+    .eq('part_number', itemPedido.part_number_manual)
+    .single();
+
+  if (erroEstoque || !itemEstoque) throw new Error('Material não encontrado no estoque para devolução.');
+
+  // 3. MATEMÁTICA: Soma o saldo atual do estoque com o que está a ser devolvido
+  const novaQuantidade = itemEstoque.quantidade_disponivel + itemPedido.quantidade_solicitada;
+
+  // 4. Salva a nova quantidade no estoque e reativa o status
+  const { error: erroUpdate } = await supabase
+    .from('estoque')
+    .update({ 
+      quantidade_disponivel: novaQuantidade, 
+      status: 'Disponível' 
+    })
+    .eq('id', itemEstoque.id);
+
+  if (erroUpdate) throw erroUpdate;
+
+  // 5. Apaga o item da solicitação para ele desaparecer da tela de Rastreabilidade
+  const { error: erroDelete } = await supabase
+    .from('solicitacoes_itens')
+    .delete()
+    .eq('id', idItem);
+
+  if (erroDelete) throw erroDelete;
+
+  return true;
+};
+
 
 
 // Certifica-te de atualizar o module.exports no final do ficheiro para incluir a nova função:
@@ -338,5 +465,6 @@ module.exports = {
   cancelarBS,
   atualizarStatus,
   deletarAnexo,
+  reverterItemParaEstoque,
   salvarAnexosExtras // 👈 ADICIONADO AQUI!
 };

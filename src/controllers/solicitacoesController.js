@@ -70,6 +70,22 @@ const removerAnexo = async (req, res) => {
   }
 };
 
+const reverterItem = async (req, res) => {
+  // Pega o ID que o frontend enviou quando clicaste no botão
+  const { id_item } = req.body;
+
+  try {
+    // Manda o serviço fazer a matemática
+    await service.reverterItemParaEstoque(id_item);
+    
+    // Devolve sucesso para o frontend
+    res.status(200).json({ sucesso: true, mensagem: 'Item revertido para o estoque com sucesso!' });
+  } catch (error) {
+    console.error(`[Erro ao reverter item ${id_item}]:`, error.message);
+    res.status(500).json({ sucesso: false, erro: error.message || 'Falha ao devolver o item ao estoque.' });
+  }
+};
+
 module.exports = {
   listar,
   criarMaterial,
@@ -81,5 +97,6 @@ module.exports = {
   cancelarBS,
   atualizarStatus,
   removerAnexo,
+  reverterItem,
   adicionarAnexosExtras
 };
