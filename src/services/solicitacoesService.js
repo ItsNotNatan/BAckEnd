@@ -251,15 +251,31 @@ const cancelarBS = async (solicitante, anexos) => {
 // =========================================================
 // 🔄 ATUALIZAÇÃO DE STATUS E MATEMÁTICA DE ESTOQUE
 // =========================================================
-const atualizarStatus = async (id, novoStatus, motivoRecusa) => {
+const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
   
-  // 1. Prepara a atualização da Solicitação
-  let atualizacaoPS = { status: novoStatus, updated_at: new Date() };
+  // 1. Busca os dados da solicitação para saber o TIPO antes de fazer qualquer coisa
+  const { data: solicitacao, error: erroBusca } = await supabase
+    .from('solicitacoes')
+    .select('tipo, filial_origem_id, observacoes')
+    .eq('id', id)
+    .single();
+
+  if (erroBusca || !solicitacao) throw new Error('Solicitação não encontrada.');
+
+  // 2. REGRA DE NEGÓCIO DA ENTRADA: 
+  // Se for "Entrada" e o operador clicou em Aprovar (statusRecebido === 'Em Separação'),
+  // forçamos o status para 'Concluído' diretamente!
+  let statusFinal = statusRecebido;
+  if (solicitacao.tipo === 'Entrada' && statusRecebido === 'Em Separação') {
+    statusFinal = 'Concluído';
+  }
+
+  // 3. Prepara a atualização da Solicitação
+  let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
   // Se foi recusado, guardamos o motivo nas observações para não perder o histórico
   if (motivoRecusa) {
-    const { data: sol } = await supabase.from('solicitacoes').select('observacoes').eq('id', id).single();
-    const obsAntiga = sol?.observacoes || '';
+    const obsAntiga = solicitacao.observacoes || '';
     atualizacaoPS.observacoes = `${obsAntiga}\n[RECUSADO]: ${motivoRecusa}`.trim();
   }
 
@@ -271,104 +287,92 @@ const atualizarStatus = async (id, novoStatus, motivoRecusa) => {
 
   if (erroPS) throw erroPS;
 
-  // 2. SE FOI APROVADO ('Em Separação' ou 'Concluído')
-  if (novoStatus === 'Em Separação') {
+  // 4. LÓGICA DE ESTOQUE E GERAÇÃO DE BS 
+  // Verificamos se foi aprovado ('Em Separação' para saídas ou 'Concluído' para Entradas)
+  const foiAprovado = (statusFinal === 'Em Separação' || (solicitacao.tipo === 'Entrada' && statusFinal === 'Concluído'));
+
+  if (foiAprovado) {
     
-    // A) Gera o BS Automaticamente
-    const { error: erroBS } = await supabase
-      .from('boletins_saida')
-      .insert([{ 
-        solicitacao_id: id, 
-        status: 'Em Separação'
-      }]);
+    // A) Gera o BS Automaticamente APENAS se NÃO for Entrada (BS = Saída)
+    if (solicitacao.tipo !== 'Entrada') {
+      const { error: erroBS } = await supabase
+        .from('boletins_saida')
+        .insert([{ 
+          solicitacao_id: id, 
+          status: 'Em Separação'
+        }]);
 
-    if (erroBS && erroBS.code !== '23505') throw erroBS;
+      if (erroBS && erroBS.code !== '23505') throw erroBS;
+    }
 
-    // B) 🔥 NOVA LÓGICA: Automação do Estoque Físico
-    // Buscar o tipo da solicitação e filial para sabermos a regra de negócio
-    const { data: solicitacao } = await supabase
-      .from('solicitacoes')
-      .select('tipo, filial_origem_id')
-      .eq('id', id)
-      .single();
+    // B) 🔥 Automação do Estoque Físico
+    const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
 
-    if (solicitacao) {
-      const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
+    // CASO 1: É UMA SAÍDA (Temos de abater o saldo)
+    if (tiposDeSaida.includes(solicitacao.tipo)) {
+      
+      const { data: itensPedidos } = await supabase
+        .from('solicitacoes_itens')
+        .select('estoque_id, quantidade_solicitada')
+        .eq('solicitacao_id', id);
 
-      // CASO 1: É UMA SAÍDA (Temos de abater o saldo)
-      if (tiposDeSaida.includes(solicitacao.tipo)) {
-        
-        // Vai buscar os itens com a chave mágica (estoque_id)
-        const { data: itensPedidos } = await supabase
-          .from('solicitacoes_itens')
-          .select('estoque_id, quantidade_solicitada')
-          .eq('solicitacao_id', id);
+      if (itensPedidos && itensPedidos.length > 0) {
+        for (const item of itensPedidos) {
+          if (item.estoque_id) {
+            const { data: estoqueAtual } = await supabase
+              .from('estoque')
+              .select('quantidade_disponivel')
+              .eq('id', item.estoque_id)
+              .single();
 
-        if (itensPedidos && itensPedidos.length > 0) {
-          for (const item of itensPedidos) {
-            // Só faz matemática se o item estiver corretamente lincado a um lote no estoque
-            if (item.estoque_id) {
-              const { data: estoqueAtual } = await supabase
+            if (estoqueAtual) {
+              const novoSaldo = estoqueAtual.quantidade_disponivel - item.quantidade_solicitada;
+              const novoStatusEstoque = novoSaldo <= 0 ? 'Zerado' : 'Disponível';
+
+              await supabase
                 .from('estoque')
-                .select('quantidade_disponivel')
-                .eq('id', item.estoque_id)
-                .single();
-
-              if (estoqueAtual) {
-                // Matemática de abatimento
-                const novoSaldo = estoqueAtual.quantidade_disponivel - item.quantidade_solicitada;
-                // Se o saldo acabar, vai direto para a Rastreabilidade como "Zerado"
-                const novoStatusEstoque = novoSaldo <= 0 ? 'Zerado' : 'Disponível';
-
-                // Salva a alteração na prateleira física
-                await supabase
-                  .from('estoque')
-                  .update({ 
-                    quantidade_disponivel: novoSaldo,
-                    status: novoStatusEstoque,
-                    updated_at: new Date()
-                  })
-                  .eq('id', item.estoque_id);
-              }
+                .update({ 
+                  quantidade_disponivel: novoSaldo,
+                  status: novoStatusEstoque,
+                  updated_at: new Date()
+                })
+                .eq('id', item.estoque_id);
             }
           }
         }
-      } 
-      
-      // CASO 2: É UMA ENTRADA (Temos de criar novos saldos na prateleira)
-      else if (solicitacao.tipo === 'Entrada') {
-        const { data: itensEntrada } = await supabase
-          .from('solicitacoes_itens')
-          .select('*')
-          .eq('solicitacao_id', id);
+      }
+    } 
+    
+    // CASO 2: É UMA ENTRADA (Temos de criar novos saldos na prateleira)
+    else if (solicitacao.tipo === 'Entrada') {
+      const { data: itensEntrada } = await supabase
+        .from('solicitacoes_itens')
+        .select('*')
+        .eq('solicitacao_id', id);
 
-        if (itensEntrada && itensEntrada.length > 0) {
-          // Converte os itens validados da "Entrada" em caixas físicas reais na tabela "estoque"
-          const novoEstoqueLotes = itensEntrada.map(item => ({
-            material_id: item.material_id || null, 
-            filial_id: solicitacao.filial_origem_id || 'BR06', // Se não houver filial atrelada à PS, usa fallback
-            nf_entrada: item.nf_entrada || 'SEM-NF',
-            documento_compras: item.documento_compras || '-',
-            wbs: item.wbs_element || '-',
-            alocacao: item.alocacao || 'Pendente',
-            quantidade_disponivel: item.quantidade_solicitada,
-            status: 'Disponível' // Novo material entra sempre disponível
-          }));
+      if (itensEntrada && itensEntrada.length > 0) {
+        const novoEstoqueLotes = itensEntrada.map(item => ({
+          material_id: item.material_id || null, 
+          filial_id: solicitacao.filial_origem_id || 'BR06', 
+          nf_entrada: item.nf_entrada || 'SEM-NF',
+          documento_compras: item.documento_compras || '-',
+          wbs: item.wbs_element || '-',
+          alocacao: item.alocacao || 'Pendente',
+          quantidade_disponivel: item.quantidade_solicitada,
+          status: 'Disponível' 
+        }));
 
-          // Insere tudo de uma vez de forma eficiente
-          const { error: erroEstoque } = await supabase
-            .from('estoque')
-            .insert(novoEstoqueLotes);
+        const { error: erroEstoque } = await supabase
+          .from('estoque')
+          .insert(novoEstoqueLotes);
 
-          if (erroEstoque) console.error("Erro ao gerar saldo de Entrada:", erroEstoque);
-        }
+        if (erroEstoque) console.error("Erro ao gerar saldo de Entrada:", erroEstoque);
       }
     }
   }
 
   return true;
 };
-
 // Adiciona esta nova função antes do module.exports no ficheiro src/services/solicitacoesService.js
 
 const salvarAnexosExtras = async (solicitacaoId, anexosArray) => {
@@ -451,6 +455,35 @@ const reverterItemParaEstoque = async (idItem) => {
   return true;
 };
 
+// Função para buscar a vida pregressa de um item do estoque
+const buscarHistoricoItem = async (estoqueId) => {
+  const { data, error } = await supabase
+    .from('solicitacoes_itens')
+    .select(`
+      quantidade_solicitada,
+      created_at,
+      solicitacoes (
+        id,
+        nome_solicitante,
+        status,
+        wbs_destino
+      )
+    `)
+    .eq('estoque_id', estoqueId);
+
+  if (error) throw error;
+
+  // Formatamos para o frontend ler facilmente
+  return data.map(item => ({
+    quantidade: item.quantidade_solicitada,
+    dataSaida: new Date(item.created_at).toLocaleDateString('pt-BR'),
+    solicitacao: item.solicitacoes?.id,
+    solicitante: item.solicitacoes?.nome_solicitante,
+    status: item.solicitacoes?.status,
+    wbs: item.solicitacoes?.wbs_destino
+  }));
+};
+
 
 
 // Certifica-te de atualizar o module.exports no final do ficheiro para incluir a nova função:
@@ -466,5 +499,6 @@ module.exports = {
   atualizarStatus,
   deletarAnexo,
   reverterItemParaEstoque,
+  buscarHistoricoItem,
   salvarAnexosExtras // 👈 ADICIONADO AQUI!
 };
