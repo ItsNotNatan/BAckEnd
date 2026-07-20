@@ -263,10 +263,9 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
   if (erroBusca || !solicitacao) throw new Error('Solicitação não encontrada.');
 
   // 2. REGRA DE NEGÓCIO DA ENTRADA: 
-  // Se for "Entrada" e o operador clicou em Aprovar (statusRecebido === 'Em Separação'),
-  // forçamos o status para 'Concluído' diretamente!
+  // Aceita diferentes variações de aprovação que o teu botão possa estar a enviar
   let statusFinal = statusRecebido;
-  if (solicitacao.tipo === 'Entrada' && statusRecebido === 'Em Separação') {
+  if (solicitacao.tipo === 'Entrada' && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado' || statusRecebido === 'Concluído')) {
     statusFinal = 'Concluído';
   }
 
@@ -288,8 +287,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
   if (erroPS) throw erroPS;
 
   // 4. LÓGICA DE ESTOQUE E GERAÇÃO DE BS 
-  // Verificamos se foi aprovado ('Em Separação' para saídas ou 'Concluído' para Entradas)
-  const foiAprovado = (statusFinal === 'Em Separação' || (solicitacao.tipo === 'Entrada' && statusFinal === 'Concluído'));
+  const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
 
   if (foiAprovado) {
     
@@ -353,6 +351,12 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
       if (itensEntrada && itensEntrada.length > 0) {
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null, 
+          
+          // 👇 AQUI ESTAVA O SEGREDO! Faltava copiar o PN e a Descrição para a tabela de estoque!
+          part_number: item.part_number_manual || 'SEM-PN',
+          descricao: item.descricao_manual || 'Sem descrição',
+          // 👆 ----------------------------------------------------------------------------------
+
           filial_id: solicitacao.filial_origem_id || 'BR06', 
           nf_entrada: item.nf_entrada || 'SEM-NF',
           documento_compras: item.documento_compras || '-',
@@ -412,20 +416,23 @@ const deletarAnexo = async (anexoId) => {
 };
 
 const reverterItemParaEstoque = async (idItem) => {
-  // 1. Busca qual foi a quantidade e o Part Number do item que saiu
+  // 1. Busca a quantidade e o ID exato da prateleira (estoque_id) de onde o item saiu
   const { data: itemPedido, error: erroBusca } = await supabase
     .from('solicitacoes_itens')
-    .select('quantidade_solicitada, part_number_manual')
+    .select('quantidade_solicitada, estoque_id')
     .eq('id', idItem)
     .single();
 
   if (erroBusca || !itemPedido) throw new Error('Item não encontrado na solicitação.');
+  
+  // Proteção extra: Se o item não tiver ligação com o estoque (ex: foi uma entrada apenas), bloqueia.
+  if (!itemPedido.estoque_id) throw new Error('Este item não possui vínculo direto com uma prateleira de estoque para devolução.');
 
-  // 2. Busca a prateleira deste material na tabela de estoque pelo Part Number
+  // 2. Busca a prateleira exata na tabela de estoque usando a ID única
   const { data: itemEstoque, error: erroEstoque } = await supabase
     .from('estoque')
     .select('id, quantidade_disponivel')
-    .eq('part_number', itemPedido.part_number_manual)
+    .eq('id', itemPedido.estoque_id) // 👇 Procuramos pela ID exata e não pelo Part Number!
     .single();
 
   if (erroEstoque || !itemEstoque) throw new Error('Material não encontrado no estoque para devolução.');
