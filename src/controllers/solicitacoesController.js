@@ -14,15 +14,28 @@ const listar = async (req, res) => {
 
 // Função auxiliar para padronizar as respostas de criação
 const criarResposta = (res, promessaID) => {
-  promessaID.then(id => res.status(201).json({ sucesso: true, ps_id: id }))
-            .catch(error => {
-              console.error('[Erro na Operação]:', error);
-              res.status(500).json({ sucesso: false, erro: 'Falha ao processar solicitação.' });
-            });
+  promessaID
+    .then(id => {
+      console.log(`✅ [SUCESSO] Operação concluída no banco. ID gerado: ${id}\n`);
+      res.status(201).json({ sucesso: true, ps_id: id });
+    })
+    .catch(error => {
+      console.log("\n❌ [FALHA CRÍTICA] Erro no momento de salvar no banco:");
+      console.error(error); // Imprime o erro real do Supabase no terminal
+      res.status(500).json({ sucesso: false, erro: 'Falha ao processar solicitação.' });
+    });
 };
 
 // Handlers para criação de cada tipo de solicitação
-const criarMaterial = (req, res) => criarResposta(res, service.criarMaterial(req.body.solicitante, req.body.itens, req.body.anexos));
+const criarMaterial = (req, res) => {
+  console.log("\n==================================================");
+  console.log("📡 [NODE.JS] CHEGOU UM PEDIDO DE MATERIAL!");
+  console.log("👤 Solicitante:", req.body.solicitante.nome);
+  console.log("📦 Total de itens recebidos:", req.body.itens.length);
+  console.log("==================================================\n");
+
+  criarResposta(res, service.criarMaterial(req.body.solicitante, req.body.itens, req.body.anexos));
+};
 const criarTransferencia = (req, res) => criarResposta(res, service.criarTransferencia(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarEntrada = (req, res) => criarResposta(res, service.criarEntrada(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarCrossdocking = (req, res) => criarResposta(res, service.criarCrossdocking(req.body.solicitante, req.body.itens, req.body.anexos));

@@ -13,34 +13,57 @@ const limparIdEstoque = (id) => {
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
   const psId = `PS-${Date.now()}`;
+  console.log(`💾 Iniciando gravação da solicitação: ${psId}`);
 
   // 1. Salva a Solicitação (PS)
+  console.log("-> 1/3: Tentando gravar na tabela 'solicitacoes'...");
   const { error: erroPS } = await supabase.from('solicitacoes').insert([{
     id: psId,
     ...dadosPrincipais
   }]);
 
-  if (erroPS) throw erroPS;
+  if (erroPS) {
+    console.error("❌ Erro na tabela 'solicitacoes':", erroPS);
+    throw erroPS;
+  }
 
   // 2. Salva os Itens (se existirem)
   if (itensArray && itensArray.length > 0) {
+    console.log(`-> 2/3: Tentando gravar ${itensArray.length} item(ns) na tabela 'solicitacoes_itens'...`);
+    
+    // RADAR DE SEGURANÇA: Mostra os IDs de estoque que estamos tentando gravar
+    console.log("   IDs de estoque processados:", itensArray.map(i => i.estoque_id));
+
     const itensParaInserir = itensArray.map(item => ({
       solicitacao_id: psId,
       ...item
     }));
+    
     const { error: erroItens } = await supabase.from('solicitacoes_itens').insert(itensParaInserir);
-    if (erroItens) throw erroItens;
+    
+    if (erroItens) {
+      console.error("❌ Erro na tabela 'solicitacoes_itens':", erroItens);
+      throw erroItens;
+    }
+  } else {
+    console.log("-> 2/3: Nenhum item para gravar.");
   }
 
   // 3. Salva os Anexos
   if (anexosArray && anexosArray.length > 0) {
+    console.log(`-> 3/3: Tentando gravar ${anexosArray.length} anexo(s) na tabela 'anexos'...`);
     const anexosParaInserir = anexosArray.map(anexo => ({
       solicitacao_id: psId,
       nome_arquivo: anexo.nome_arquivo,
       url_arquivo: anexo.url_arquivo
     }));
     const { error: erroAnexos } = await supabase.from('anexos').insert(anexosParaInserir);
-    if (erroAnexos) throw erroAnexos;
+    if (erroAnexos) {
+      console.error("❌ Erro na tabela 'anexos':", erroAnexos);
+      throw erroAnexos;
+    }
+  } else {
+    console.log("-> 3/3: Nenhum anexo para gravar.");
   }
 
   return psId;
