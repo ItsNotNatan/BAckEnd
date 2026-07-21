@@ -318,7 +318,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
 
     const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
 
-// CASO 1: É UMA SAÍDA (Temos de abater o saldo)
+    // CASO 1: É UMA SAÍDA OU TRANSFERÊNCIA
     if (tiposDeSaida.includes(solicitacao.tipo)) {
 
       const { data: itensPedidos } = await supabase
@@ -330,10 +330,10 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
         for (const item of itensPedidos) {
           if (item.estoque_id) {
             
-            // 👇 MUDANÇA 1: Pedimos o '*' para trazer a ficha completa do produto, não só a quantidade!
+            // 👇 Buscamos todos os dados do material na prateleira original (*)
             const { data: estoqueAtual } = await supabase
               .from('estoque')
-              .select('*') 
+              .select('*')
               .eq('id', item.estoque_id)
               .single();
 
@@ -355,29 +355,30 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
                 })
                 .eq('id', item.estoque_id);
 
-              // --- PARTE B: CRIAR A NOVA LINHA PARA O DESTINO (MÁGICA DA TRANSFERÊNCIA) ---
+// ... código anterior ...
+
+              // --- PARTE B: CRIAR A NOVA LINHA NO ESTOQUE SE FOR TRANSFERÊNCIA ---
               if (solicitacao.tipo === 'Transferencia WBS') {
                 console.log(`🔄 [TRANSFERÊNCIA] Criando nova entrada para o WBS: ${solicitacao.wbs_destino}`);
                 
                 const itemParaNovoWBS = {
-                  // 1. Copiamos o DNA do produto original
                   material_id: estoqueAtual.material_id,
+                  filial_id: estoqueAtual.filial_id,
+                  
+                  // 🛠️ INCLUÍMOS O DESENHO SAP AQUI
+                  desenho_sap: estoqueAtual.desenho_sap, 
+                  
                   part_number: estoqueAtual.part_number,
                   descricao: estoqueAtual.descricao,
-                  desenho_sap: estoqueAtual.desenho_sap,
-                  fornecedor: estoqueAtual.fornecedor,
-                  unidade_medida: estoqueAtual.unidade_medida,
-                  filial_id: estoqueAtual.filial_id,
                   nf_entrada: estoqueAtual.nf_entrada,
                   documento_compras: estoqueAtual.documento_compras,
                   
-                  // 2. Aplicamos os dados do novo dono (WBS Destino)
-                  quantidade_disponivel: quantidadeRetirada, // Apenas a quantidade que viajou
+                  // Novos dados para o destino
+                  quantidade_disponivel: quantidadeRetirada,
                   status: 'Disponível',
-                  wbs: solicitacao.wbs_destino, // O novo centro de custo
-                  
-                  // 3. O nosso carimbo especial que pediste!
-                  alocacao: `Transferido (Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'})`
+                  wbs: solicitacao.wbs_destino, 
+                  is_transferencia: true,
+                  alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`
                 };
 
                 const { error: erroTransf } = await supabase
