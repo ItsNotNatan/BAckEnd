@@ -11,12 +11,13 @@ const limparIdEstoque = (id) => {
 };
 
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
-const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
+// Reparar que agora temos um 4º parâmetro aqui: numeroDaNota
+const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
   const psId = `PS-${Date.now()}`;
   console.log(`💾 Iniciando gravação da solicitação: ${psId}`);
 
   // 1. Salva a Solicitação (PS)
-  console.log("-> 1/3: Tentando gravar na tabela 'solicitacoes'...");
+  console.log("-> 1/4: Tentando gravar na tabela 'solicitacoes'...");
   const { error: erroPS } = await supabase.from('solicitacoes').insert([{
     id: psId,
     ...dadosPrincipais
@@ -29,11 +30,7 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
 
   // 2. Salva os Itens (se existirem)
   if (itensArray && itensArray.length > 0) {
-    console.log(`-> 2/3: Tentando gravar ${itensArray.length} item(ns) na tabela 'solicitacoes_itens'...`);
-    
-    // RADAR DE SEGURANÇA: Mostra os IDs de estoque que estamos tentando gravar
-    console.log("   IDs de estoque processados:", itensArray.map(i => i.estoque_id));
-
+    console.log(`-> 2/4: Tentando gravar ${itensArray.length} item(ns) na tabela 'solicitacoes_itens'...`);
     const itensParaInserir = itensArray.map(item => ({
       solicitacao_id: psId,
       ...item
@@ -46,12 +43,12 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
       throw erroItens;
     }
   } else {
-    console.log("-> 2/3: Nenhum item para gravar.");
+    console.log("-> 2/4: Nenhum item para gravar.");
   }
 
   // 3. Salva os Anexos
   if (anexosArray && anexosArray.length > 0) {
-    console.log(`-> 3/3: Tentando gravar ${anexosArray.length} anexo(s) na tabela 'anexos'...`);
+    console.log(`-> 3/4: Tentando gravar ${anexosArray.length} anexo(s) na tabela 'anexos'...`);
     const anexosParaInserir = anexosArray.map(anexo => ({
       solicitacao_id: psId,
       nome_arquivo: anexo.nome_arquivo,
@@ -63,11 +60,31 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
       throw erroAnexos;
     }
   } else {
-    console.log("-> 3/3: Nenhum anexo para gravar.");
+    console.log("-> 3/4: Nenhum anexo para gravar.");
+  }
+
+  // =======================================================
+  // 4. ✨ AQUI ESTÁ O CÓDIGO NOVO: Salva a Nota Fiscal
+  // =======================================================
+  if (numeroDaNota) {
+    console.log(`-> 4/4: Tentando gravar a Nota Fiscal ${numeroDaNota} na tabela 'notas_fiscais'...`);
+    const { error: erroNF } = await supabase.from('notas_fiscais').insert([{
+      solicitacao_id: psId,
+      numero_nf: numeroDaNota // Mantivemos numero_nf porque é assim que está no teu Banco de Dados!
+    }]);
+
+    if (erroNF) {
+      console.error("❌ Erro na tabela 'notas_fiscais':", erroNF);
+      throw erroNF;
+    }
+  } else {
+    console.log("-> 4/4: Nenhuma nota fiscal para gravar à parte.");
   }
 
   return psId;
 };
+
+
 
 // =========================================================
 // 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
@@ -76,7 +93,8 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = []) => {
 const listarSolicitacoes = async () => {
   const { data, error } = await supabase
     .from('solicitacoes')
-    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)`)
+    // 👇 ADICIONA O 'notas_fiscais (numero_nf)' AQUI NESTA LINHA
+    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), notas_fiscais (numero_nf), anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)`)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -96,7 +114,10 @@ const listarSolicitacoes = async () => {
     return {
       id: sol.id,
       tipo: sol.tipo,
+      // 👇 ADICIONA ESTA LINHA PARA ENVIAR A NF PARA O REACT
+      nfCrossdocking: sol.notas_fiscais && sol.notas_fiscais.length > 0 ? sol.notas_fiscais[0].numero_nf : (sol.notas_fiscais?.numero_nf || null),
       solicitante: sol.nome_solicitante || 'Não informado',
+      // ... resto do teu código ...
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
       bs: numeroBS ? `BS #${numeroBS}` : null,
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -213,7 +234,8 @@ const criarCrossdocking = async (solicitante, itens, anexos) => {
     unidade_medida_manual: i.unidade_medida_manual
   }));
 
-  return await salvarNoBanco(dados, itensDB, anexos);
+  // O 4º parâmetro (solicitante.nf) é passado aqui!
+  return await salvarNoBanco(dados, itensDB, anexos, solicitante.nf);
 };
 
 const criarNotaFiscal = async (solicitante, anexos) => {
