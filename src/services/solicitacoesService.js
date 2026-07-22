@@ -90,11 +90,14 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
 // 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
 // =========================================================
 
+// src/services/solicitacoesService.js
+// ... (resto do código em cima)
+
 const listarSolicitacoes = async () => {
   const { data, error } = await supabase
     .from('solicitacoes')
-    // 👇 ADICIONA O 'notas_fiscais (numero_nf)' AQUI NESTA LINHA
-    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, boletins_saida (numero_bs), notas_fiscais (numero_nf), anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)`)
+    // 👇 1. Adicionamos o 'updated_at' dentro do .select()
+    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, updated_at, boletins_saida (numero_bs), notas_fiscais (numero_nf), anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)`)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -114,13 +117,18 @@ const listarSolicitacoes = async () => {
     return {
       id: sol.id,
       tipo: sol.tipo,
-      // 👇 ADICIONA ESTA LINHA PARA ENVIAR A NF PARA O REACT
       nfCrossdocking: sol.notas_fiscais && sol.notas_fiscais.length > 0 ? sol.notas_fiscais[0].numero_nf : (sol.notas_fiscais?.numero_nf || null),
       solicitante: sol.nome_solicitante || 'Não informado',
-      // ... resto do teu código ...
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
       bs: numeroBS ? `BS #${numeroBS}` : null,
+      
+      // Mantemos a data em texto para mostrar na tabela normal
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      
+      // 👇 2. NOVAS PROPRIEDADES: Mandamos as datas originais para o Front-end fazer a matemática!
+      dataCriacaoISO: sol.created_at,
+      dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
+
       dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
       status: sol.status,
       observacoes: sol.observacoes,
@@ -130,6 +138,8 @@ const listarSolicitacoes = async () => {
     };
   });
 };
+
+// ... (resto do código em baixo)
 
 const criarMaterial = async (solicitante, itens, anexos) => {
   const dados = {
