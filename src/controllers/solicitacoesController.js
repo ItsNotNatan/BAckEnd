@@ -2,10 +2,22 @@
 const service = require('../services/solicitacoesService');
 
 // Lista todas as solicitações vindas do banco
+// src/controllers/solicitacoesController.js
+
+// Lista as solicitações vindas do banco de forma paginada e filtrada
 const listar = async (req, res) => {
   try {
-    const dados = await service.listarSolicitacoes();
-    res.status(200).json({ sucesso: true, dados });
+    // Captura os parâmetros da URL. Se não existirem, assume valores padrão (Página 1, Limite 10)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10; 
+    const busca = req.query.busca || '';
+    const tipo = req.query.tipo || '';
+
+    // Invoca o serviço repassando a paginação e os filtros textuais/categoria
+    const { dados, total } = await service.listarSolicitacoes(page, limit, busca, tipo);
+    
+    // Retorna a estrutura exata esperada pelo componente React (sucesso, linhas da página e total absoluto)
+    res.status(200).json({ sucesso: true, dados, total });
   } catch (error) {
     console.error('[Erro ao listar solicitações]:', error);
     res.status(500).json({ sucesso: false, erro: 'Falha ao buscar solicitações no banco.' });

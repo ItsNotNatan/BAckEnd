@@ -93,23 +93,47 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
 // src/services/solicitacoesService.js
 // ... (resto do código em cima)
 
-const listarSolicitacoes = async () => {
-  const { data, error } = await supabase
+// src/services/solicitacoesService.js
+
+const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') => {
+  // 1. Calcula o intervalo inclusivo do índice (0-based) aceito pelo range do Supabase
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  // 2. Monta a base da query pedindo explicitamente o contador absoluto de registros no banco
+  let query = supabase
     .from('solicitacoes')
-    // 👇 1. Adicionamos o 'updated_at' dentro do .select()
-    .select(`id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, data_necessidade, entrega_urgente, status, created_at, updated_at, boletins_saida (numero_bs), notas_fiscais (numero_nf), anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)`)
-    .order('created_at', { ascending: false });
+    .select(`
+      id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, 
+      data_necessidade, entrega_urgente, status, created_at, updated_at, 
+      boletins_saida (numero_bs), notas_fiscais (numero_nf), 
+      anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
+    `, { count: 'exact' });
+
+  // 3. Aplica o filtro por tipo/categoria se a aba selecionada for diferente de 'Todos'
+  if (tipo && tipo !== 'Todos') {
+    query = query.eq('tipo', tipo);
+  }
+
+  // 4. Aplica busca textual inteligente utilizando 'OR' nas colunas-chave do banco
+  if (busca) {
+    query = query.or(`id.ilike.%${busca}%,nome_solicitante.ilike.%${busca}%,wbs_destino.ilike.%${busca}%,wbs_origem.ilike.%${busca}%`);
+  }
+
+  // 5. Executa a ordenação decrescente e fatia trazendo cirurgicamente os 10 itens desejados
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) throw error;
 
-  return data.map(sol => {
-
+  // 6. Realiza o mapeamento padrão dos dados para o layout da sua tabela
+  const dadosFormatados = data.map(sol => {
     let numeroBS = null;
     if (sol.boletins_saida) {
       if (Array.isArray(sol.boletins_saida) && sol.boletins_saida.length > 0) {
         numeroBS = sol.boletins_saida[0].numero_bs;
-      }
-      else if (!Array.isArray(sol.boletins_saida) && sol.boletins_saida.numero_bs) {
+      } else if (!Array.isArray(sol.boletins_saida) && sol.boletins_saida.numero_bs) {
         numeroBS = sol.boletins_saida.numero_bs;
       }
     }
@@ -122,13 +146,10 @@ const listarSolicitacoes = async () => {
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
       bs: numeroBS ? `BS #${numeroBS}` : null,
       
-      // Mantemos a data em texto para mostrar na tabela normal
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       
-      // 👇 2. NOVAS PROPRIEDADES: Mandamos as datas originais para o Front-end fazer a matemática!
       dataCriacaoISO: sol.created_at,
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
-
       dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
       status: sol.status,
       observacoes: sol.observacoes,
@@ -137,6 +158,12 @@ const listarSolicitacoes = async () => {
       itens: sol.solicitacoes_itens || []
     };
   });
+
+  // Retorna um objeto contendo a página atual de dados e o contador global atualizado
+  return { 
+    dados: dadosFormatados, 
+    total: count || 0 
+  };
 };
 
 // ... (resto do código em baixo)
