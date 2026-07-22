@@ -1,0 +1,69 @@
+.alerta-global-overlay {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 99999; /* Fica por cima de tudo, até dos modais */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* Permite clicar no que estiver atrás do overlay */
+}
+
+.alerta-cartao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  pointer-events: auto; /* Reativa o clique na própria caixinha */
+  animation: slideInDireita 0.3s ease-out forwards;
+  max-width: 400px;
+  min-width: 300px;
+  border-left: 6px solid;
+}
+
+@keyframes slideInDireita {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Variações de Cores Baseadas no Tipo */
+.alerta-sucesso { border-left-color: #10b981; }
+.alerta-sucesso .alerta-icone { color: #10b981; }
+
+.alerta-erro { border-left-color: #ef4444; }
+.alerta-erro .alerta-icone { color: #ef4444; }
+
+.alerta-aviso { border-left-color: #f59e0b; }
+.alerta-aviso .alerta-icone { color: #f59e0b; }
+
+.alerta-info { border-left-color: #3b82f6; }
+.alerta-info .alerta-icone { color: #3b82f6; }
+
+.alerta-mensagem {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.alerta-btn-fechar {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.alerta-btn-fechar:hover {
+  background-color: #f1f5f9;
+  color: #475569;
+}

@@ -1,0 +1,236 @@
+/* CONTAINER GERAL */
+.formatacao-wrapper {
+  padding: 32px;
+  background-color: #f4f5f7;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #334155;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* CABEÇALHO */
+.formatacao-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.icone-titulo {
+  color: #2563eb;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.formatacao-cabecalho h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+}
+
+.formatacao-cabecalho p {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ========================================= */
+/* LAYOUT GRID (2 COLUNAS)                   */
+/* ========================================= */
+.formatacao-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr; /* Coluna esquerda fixa de 360px, direita ocupa o resto */
+  gap: 24px;
+  align-items: start;
+}
+
+/* CARTÃO DA LISTA (ESQUERDA) */
+.cartao-lista {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 600px; /* Altura fixa para permitir scroll interno */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+}
+
+/* ALTERNADOR DE ABAS (TOGGLE) */
+.toggle-container {
+  display: flex;
+  padding: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  background-color: #ffffff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:first-child {
+  border-radius: 8px 0 0 8px;
+  border-right: none;
+}
+
+.toggle-btn:last-child {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.toggle-btn.ativo {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* BARRA DE PESQUISA */
+.pesquisa-container {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.pesquisa-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pesquisa-icone {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.pesquisa-input {
+  width: 100%;
+  padding: 10px 12px 10px 40px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #334155;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.pesquisa-input:focus {
+  border-color: #93c5fd;
+  background-color: #ffffff;
+}
+
+/* LISTA COM SCROLL */
+.lista-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.lista-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lista-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.lista-scroll-container::-webkit-scrollbar-thumb {
+  background-color: #94a3b8;
+  border-radius: 10px;
+  border: 2px solid #ffffff;
+}
+
+/* ITENS DA LISTA */
+.lista-item {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.lista-item:hover {
+  background-color: #f8fafc;
+}
+
+.item-titulo {
+  font-size: 1rem;
+  color: #1e293b;
+  font-family: monospace, sans-serif;
+}
+
+.item-titulo strong {
+  font-weight: 600;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.item-meta {
+  font-size: 0.875rem;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.item-destino {
+  font-size: 0.875rem;
+  color: #2563eb;
+  font-weight: 500;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
+/* ========================================= */
+/* CARTÃO DE PRÉ-VISUALIZAÇÃO (DIREITA)      */
+/* ========================================= */
+.cartao-preview {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 600px; /* Mesma altura da lista à esquerda */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  text-align: center;
+}
+
+.icone-preview {
+  color: #cbd5e1; /* Cinza claro */
+  margin-bottom: 16px;
+}
+
+.cartao-preview h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #64748b;
+  margin: 0 0 8px 0;
+}
+
+.cartao-preview p {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* RESPONSIVIDADE */
+@media (max-width: 900px) {
+  .formatacao-grid {
+    grid-template-columns: 1fr;
+  }
+  .cartao-lista, .cartao-preview {
+    height: auto;
+    min-height: 400px;
+  }
+}
