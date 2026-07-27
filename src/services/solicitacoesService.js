@@ -65,16 +65,9 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
   return { id: uuidGerado, ps: psGerado }; 
 };
 
-
-
 // =========================================================
 // 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
 // =========================================================
-
-// src/services/solicitacoesService.js
-// ... (resto do código em cima)
-
-// src/services/solicitacoesService.js
 
 const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') => {
   // 1. Calcula o intervalo inclusivo do índice (0-based) aceito pelo range do Supabase
@@ -82,11 +75,11 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') =
   const to = from + limit - 1;
 
   // 2. Monta a base da query pedindo explicitamente o contador absoluto de registros no banco
-let query = supabase
+  let query = supabase
     .from('solicitacoes')
-    // Adicione 'ps, bs' aqui na string do select
+    // Adicionei 'filial_origem_id' aqui na string do select
     .select(`
-      id, ps, bs, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, 
+      id, ps, bs, tipo, nome_solicitante, wbs_destino, wbs_origem, filial_origem_id, observacoes, 
       data_necessidade, entrega_urgente, status, created_at, updated_at, 
       boletins_saida (numero_bs), notas_fiscais (numero_nf), 
       anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
@@ -128,6 +121,9 @@ let query = supabase
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
       bs: numeroBS ? `BS #${numeroBS}` : null,
       
+      // 👇 Mapeamos a filial para que o frontend possa exibir na listagem
+      filial: sol.filial_origem_id || '-',
+      
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       
       dataCriacaoISO: sol.created_at,
@@ -148,8 +144,6 @@ let query = supabase
   };
 };
 
-// ... (resto do código em baixo)
-
 const criarMaterial = async (solicitante, itens, anexos) => {
   const dados = {
     tipo: 'Material',
@@ -163,7 +157,6 @@ const criarMaterial = async (solicitante, itens, anexos) => {
   };
 
   const itensDB = itens.map(i => ({
-    // 👇 Aplicamos o nosso "guarda-costas" aqui:
     estoque_id: limparIdEstoque(i.estoque_id || i.id),
     desenho_sap_manual: i.desenhoSAP,
     part_number_manual: i.numPecaFabricante,
@@ -188,7 +181,6 @@ const criarTransferencia = async (solicitante, itens, anexos) => {
   };
 
   const itensDB = itens.map(i => ({
-    // 👇 Aplicamos o nosso "guarda-costas" aqui também:
     estoque_id: limparIdEstoque(i.estoque_id || i.id),
     part_number_manual: i.numPecaFabricante || i.pn,
     descricao_manual: i.materialDescription || i.desc,
@@ -204,7 +196,9 @@ const criarEntrada = async (solicitante, itens, anexos) => {
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Pendente'
+    status: 'Pendente',
+    // 👇 Guarda a filial escolhida pelo cliente!
+    filial_origem_id: solicitante.filial_id
   };
 
   const itensDB = itens.map(i => {
@@ -253,7 +247,6 @@ const criarCrossdocking = async (solicitante, itens, anexos) => {
     unidade_medida_manual: i.unidade_medida_manual
   }));
 
-  // O 4º parâmetro (solicitante.nf) é passado aqui!
   return await salvarNoBanco(dados, itensDB, anexos, solicitante.nf);
 };
 
@@ -310,17 +303,6 @@ const cancelarBS = async (solicitante, anexos) => {
 // 🔄 ATUALIZAÇÃO DE STATUS E MATEMÁTICA DE ESTOQUE
 // =========================================================
 const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
-  // ... (código existente da busca)
-
-  let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
-
-  // Se veio o número do BS, adicionamos à atualização
-  if (numeroBS) {
-    atualizacaoPS.bs = numeroBS;
-  }
-
-  // ... (resto do código com o update e logs)[cite: 1]
-
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
     .select('tipo, filial_origem_id, observacoes')
@@ -339,6 +321,10 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
   }
 
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
+
+  if (numeroBS) {
+    atualizacaoPS.bs = numeroBS;
+  }
 
   if (motivoRecusa) {
     const obsAntiga = solicitacao.observacoes || '';
@@ -381,7 +367,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
         for (const item of itensPedidos) {
           if (item.estoque_id) {
             
-            // 👇 Buscamos todos os dados do material na prateleira original (*)
             const { data: estoqueAtual } = await supabase
               .from('estoque')
               .select('*')
@@ -406,8 +391,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
                 })
                 .eq('id', item.estoque_id);
 
-// ... código anterior ...
-
               // --- PARTE B: CRIAR A NOVA LINHA NO ESTOQUE SE FOR TRANSFERÊNCIA ---
               if (solicitacao.tipo === 'Transferencia WBS') {
                 console.log(`🔄 [TRANSFERÊNCIA] Criando nova entrada para o WBS: ${solicitacao.wbs_destino}`);
@@ -415,16 +398,11 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
                 const itemParaNovoWBS = {
                   material_id: estoqueAtual.material_id,
                   filial_id: estoqueAtual.filial_id,
-                  
-                  // 🛠️ INCLUÍMOS O DESENHO SAP AQUI
                   desenho_sap: estoqueAtual.desenho_sap, 
-                  
                   part_number: estoqueAtual.part_number,
                   descricao: estoqueAtual.descricao,
                   nf_entrada: estoqueAtual.nf_entrada,
                   documento_compras: estoqueAtual.documento_compras,
-                  
-                  // Novos dados para o destino
                   quantidade_disponivel: quantidadeRetirada,
                   status: 'Disponível',
                   wbs: solicitacao.wbs_destino, 
