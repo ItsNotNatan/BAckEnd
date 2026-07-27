@@ -113,11 +113,26 @@ const reverterItem = async (req, res) => {
   }
 };
 
+const atualizarLocalizacao = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { filial, centro, deposito } = req.body;
+
+    await solicitacoesService.atualizarLocalizacao(id, { filial, centro, deposito });
+    
+    res.json({ sucesso: true, mensagem: 'Localização atualizada com sucesso!' });
+  } catch (error) {
+    console.error("Erro ao atualizar localização:", error);
+    res.status(500).json({ sucesso: false, erro: error.message });
+  }
+};
+
 module.exports = {
   listar,
   criarMaterial,
   criarTransferencia,
   criarEntrada,
+  atualizarLocalizacao,
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,

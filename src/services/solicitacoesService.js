@@ -575,6 +575,34 @@ const buscarHistoricoItem = async (estoqueId) => {
   }));
 };
 
+const atualizarLocalizacao = async (id, dadosLocal) => {
+  // 1. Atualiza a filial na tabela de solicitações
+  if (dadosLocal.filial) {
+    const { error: erroSol } = await supabase
+      .from('solicitacoes')
+      .update({ filial_origem_id: dadosLocal.filial })
+      .eq('id', id);
+      
+    if (erroSol) throw erroSol;
+  }
+
+  // 2. Atualiza o centro e o depósito na tabela de itens
+  if (dadosLocal.centro || dadosLocal.deposito) {
+    const atualizacaoItens = {};
+    if (dadosLocal.centro) atualizacaoItens.centro = dadosLocal.centro;
+    if (dadosLocal.deposito) atualizacaoItens.deposito = dadosLocal.deposito;
+
+    const { error: erroItens } = await supabase
+      .from('solicitacoes_itens')
+      .update(atualizacaoItens)
+      .eq('solicitacao_id', id);
+      
+    if (erroItens) throw erroItens;
+  }
+
+  return true;
+};
+
 module.exports = {
   listarSolicitacoes,
   criarMaterial,
@@ -588,5 +616,6 @@ module.exports = {
   deletarAnexo,
   reverterItemParaEstoque,
   buscarHistoricoItem,
+  atualizarLocalizacao,
   salvarAnexosExtras
 };
