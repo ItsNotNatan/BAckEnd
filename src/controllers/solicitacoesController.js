@@ -25,15 +25,17 @@ const listar = async (req, res) => {
 };
 
 // Função auxiliar para padronizar as respostas de criação
+// src/controllers/solicitacoesController.js
 const criarResposta = (res, promessaID) => {
   promessaID
-    .then(id => {
-      console.log(`✅ [SUCESSO] Operação concluída no banco. ID gerado: ${id}\n`);
-      res.status(201).json({ sucesso: true, ps_id: id });
+    .then(resultado => {
+      console.log(`✅ [SUCESSO] Operação concluída. UUID: ${resultado.id} | PS: ${resultado.ps}\n`);
+      // Devolvemos o "ps" para o Frontend mostrar no alerta!
+      res.status(201).json({ sucesso: true, id: resultado.id, ps: resultado.ps });
     })
     .catch(error => {
       console.log("\n❌ [FALHA CRÍTICA] Erro no momento de salvar no banco:");
-      console.error(error); // Imprime o erro real do Supabase no terminal
+      console.error(error); 
       res.status(500).json({ sucesso: false, erro: 'Falha ao processar solicitação.' });
     });
 };
@@ -55,13 +57,13 @@ const criarNotaFiscal = (req, res) => criarResposta(res, service.criarNotaFiscal
 const criarReintegracao = (req, res) => criarResposta(res, service.criarReintegracao(req.body.solicitante, req.body.anexos));
 const cancelarBS = (req, res) => criarResposta(res, service.cancelarBS(req.body.solicitante, req.body.anexos));
 
-// Atualiza o status da PS (Aprovar / Reprovar)
 const atualizarStatus = async (req, res) => {
   const { id } = req.params;
-  const { status, motivo_recusa } = req.body;
+  const { status, motivo_recusa, bs } = req.body; // Pegue o 'bs' do Frontend
 
   try {
-    await service.atualizarStatus(id, status, motivo_recusa);
+    await service.atualizarStatus(id, status, motivo_recusa, bs); // Passe para o serviço
+    // ...resto do código
     res.status(200).json({ sucesso: true, mensagem: `Status updated para ${status}` });
   } catch (error) {
     console.error(`[Erro ao atualizar status da PS ${id}]:`, error);

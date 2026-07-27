@@ -13,75 +13,56 @@ const limparIdEstoque = (id) => {
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 // Reparar que agora temos um 4º parâmetro aqui: numeroDaNota
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
-  const psId = `PS-${Date.now()}`;
-  console.log(`💾 Iniciando gravação da solicitação: ${psId}`);
+  // 1. Gera o PS Bonito (Ex: PS-20260724-5192)
+  const dataAtual = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);
+  const psGerado = `PS-${dataAtual}-${numeroAleatorio}`;
+  
+  console.log(`💾 Iniciando gravação da solicitação: ${psGerado}`);
 
-  // 1. Salva a Solicitação (PS)
+  // 2. Salva a Solicitação e pede ao Supabase para devolver o UUID gerado
   console.log("-> 1/4: Tentando gravar na tabela 'solicitacoes'...");
-  const { error: erroPS } = await supabase.from('solicitacoes').insert([{
-    id: psId,
+  const { data: psData, error: erroPS } = await supabase.from('solicitacoes').insert([{
+    ps: psGerado, // A nova coluna que criamos no banco!
     ...dadosPrincipais
-  }]);
+  }]).select('id, ps').single(); // Pede o retorno do UUID (id) e do PS
 
-  if (erroPS) {
-    console.error("❌ Erro na tabela 'solicitacoes':", erroPS);
-    throw erroPS;
-  }
+  if (erroPS) throw erroPS;
 
-  // 2. Salva os Itens (se existirem)
+  const uuidGerado = psData.id; // Pegamos o UUID real (ex: 550e8400-e29b...)
+
+  // 3. Salva os Itens usando o UUID
   if (itensArray && itensArray.length > 0) {
-    console.log(`-> 2/4: Tentando gravar ${itensArray.length} item(ns) na tabela 'solicitacoes_itens'...`);
     const itensParaInserir = itensArray.map(item => ({
-      solicitacao_id: psId,
+      solicitacao_id: uuidGerado, // Usa o UUID
       ...item
     }));
-    
     const { error: erroItens } = await supabase.from('solicitacoes_itens').insert(itensParaInserir);
-    
-    if (erroItens) {
-      console.error("❌ Erro na tabela 'solicitacoes_itens':", erroItens);
-      throw erroItens;
-    }
-  } else {
-    console.log("-> 2/4: Nenhum item para gravar.");
+    if (erroItens) throw erroItens;
   }
 
-  // 3. Salva os Anexos
+  // 4. Salva os Anexos usando o UUID
   if (anexosArray && anexosArray.length > 0) {
-    console.log(`-> 3/4: Tentando gravar ${anexosArray.length} anexo(s) na tabela 'anexos'...`);
     const anexosParaInserir = anexosArray.map(anexo => ({
-      solicitacao_id: psId,
+      solicitacao_id: uuidGerado,
       nome_arquivo: anexo.nome_arquivo,
       url_arquivo: anexo.url_arquivo
     }));
     const { error: erroAnexos } = await supabase.from('anexos').insert(anexosParaInserir);
-    if (erroAnexos) {
-      console.error("❌ Erro na tabela 'anexos':", erroAnexos);
-      throw erroAnexos;
-    }
-  } else {
-    console.log("-> 3/4: Nenhum anexo para gravar.");
+    if (erroAnexos) throw erroAnexos;
   }
 
-  // =======================================================
-  // 4. ✨ AQUI ESTÁ O CÓDIGO NOVO: Salva a Nota Fiscal
-  // =======================================================
+  // 5. Salva a Nota Fiscal usando o UUID
   if (numeroDaNota) {
-    console.log(`-> 4/4: Tentando gravar a Nota Fiscal ${numeroDaNota} na tabela 'notas_fiscais'...`);
     const { error: erroNF } = await supabase.from('notas_fiscais').insert([{
-      solicitacao_id: psId,
-      numero_nf: numeroDaNota // Mantivemos numero_nf porque é assim que está no teu Banco de Dados!
+      solicitacao_id: uuidGerado,
+      numero_nf: numeroDaNota
     }]);
-
-    if (erroNF) {
-      console.error("❌ Erro na tabela 'notas_fiscais':", erroNF);
-      throw erroNF;
-    }
-  } else {
-    console.log("-> 4/4: Nenhuma nota fiscal para gravar à parte.");
+    if (erroNF) throw erroNF;
   }
 
-  return psId;
+  // Devolve um objeto com o UUID e o PS para o controller
+  return { id: uuidGerado, ps: psGerado }; 
 };
 
 
@@ -101,10 +82,11 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') =
   const to = from + limit - 1;
 
   // 2. Monta a base da query pedindo explicitamente o contador absoluto de registros no banco
-  let query = supabase
+let query = supabase
     .from('solicitacoes')
+    // Adicione 'ps, bs' aqui na string do select
     .select(`
-      id, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, 
+      id, ps, bs, tipo, nome_solicitante, wbs_destino, wbs_origem, observacoes, 
       data_necessidade, entrega_urgente, status, created_at, updated_at, 
       boletins_saida (numero_bs), notas_fiscais (numero_nf), 
       anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
@@ -327,7 +309,17 @@ const cancelarBS = async (solicitante, anexos) => {
 // =========================================================
 // 🔄 ATUALIZAÇÃO DE STATUS E MATEMÁTICA DE ESTOQUE
 // =========================================================
-const atualizarStatus = async (id, statusRecebido, motivoRecusa) => {
+const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
+  // ... (código existente da busca)
+
+  let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
+
+  // Se veio o número do BS, adicionamos à atualização
+  if (numeroBS) {
+    atualizacaoPS.bs = numeroBS;
+  }
+
+  // ... (resto do código com o update e logs)[cite: 1]
 
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
