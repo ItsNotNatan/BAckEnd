@@ -118,7 +118,8 @@ const atualizarLocalizacao = async (req, res) => {
     const { id } = req.params;
     const { filial, centro, deposito } = req.body;
 
-    await solicitacoesService.atualizarLocalizacao(id, { filial, centro, deposito });
+    // 👇 O AJUSTE FOI AQUI: mudamos de 'solicitacoesService' para 'service'
+    await service.atualizarLocalizacao(id, { filial, centro, deposito });
     
     res.json({ sucesso: true, mensagem: 'Localização atualizada com sucesso!' });
   } catch (error) {
@@ -128,6 +129,7 @@ const atualizarLocalizacao = async (req, res) => {
 };
 
 module.exports = {
+
   listar,
   criarMaterial,
   criarTransferencia,
