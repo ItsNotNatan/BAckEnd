@@ -1,22 +1,22 @@
 // src/controllers/solicitacoesController.js
 const service = require('../services/solicitacoesService');
 
-// Lista todas as solicitações vindas do banco
-// src/controllers/solicitacoesController.js
-
 // Lista as solicitações vindas do banco de forma paginada e filtrada
 const listar = async (req, res) => {
   try {
-    // Captura os parâmetros da URL. Se não existirem, assume valores padrão (Página 1, Limite 10)
+    // Captura os parâmetros da URL
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10; 
     const busca = req.query.busca || '';
     const tipo = req.query.tipo || '';
-
-    // Invoca o serviço repassando a paginação e os filtros textuais/categoria
-    const { dados, total } = await service.listarSolicitacoes(page, limit, busca, tipo);
     
-    // Retorna a estrutura exata esperada pelo componente React (sucesso, linhas da página e total absoluto)
+    // 👇 AQUI: Capturamos a filial que o Front-end está a enviar
+    const filial = req.query.filial || '';
+
+    // Invoca o serviço repassando a paginação, filtros e a filial
+    const { dados, total } = await service.listarSolicitacoes(page, limit, busca, tipo, filial);
+    
+    // Retorna a estrutura exata esperada pelo componente React
     res.status(200).json({ sucesso: true, dados, total });
   } catch (error) {
     console.error('[Erro ao listar solicitações]:', error);
@@ -25,12 +25,10 @@ const listar = async (req, res) => {
 };
 
 // Função auxiliar para padronizar as respostas de criação
-// src/controllers/solicitacoesController.js
 const criarResposta = (res, promessaID) => {
   promessaID
     .then(resultado => {
       console.log(`✅ [SUCESSO] Operação concluída. UUID: ${resultado.id} | PS: ${resultado.ps}\n`);
-      // Devolvemos o "ps" para o Frontend mostrar no alerta!
       res.status(201).json({ sucesso: true, id: resultado.id, ps: resultado.ps });
     })
     .catch(error => {
@@ -45,6 +43,7 @@ const criarMaterial = (req, res) => {
   console.log("\n==================================================");
   console.log("📡 [NODE.JS] CHEGOU UM PEDIDO DE MATERIAL!");
   console.log("👤 Solicitante:", req.body.solicitante.nome);
+  console.log("📍 Filial:", req.body.solicitante.filial_origem || req.body.solicitante.filial_id);
   console.log("📦 Total de itens recebidos:", req.body.itens.length);
   console.log("==================================================\n");
 
@@ -59,11 +58,10 @@ const cancelarBS = (req, res) => criarResposta(res, service.cancelarBS(req.body.
 
 const atualizarStatus = async (req, res) => {
   const { id } = req.params;
-  const { status, motivo_recusa, bs } = req.body; // Pegue o 'bs' do Frontend
+  const { status, motivo_recusa, bs } = req.body; 
 
   try {
-    await service.atualizarStatus(id, status, motivo_recusa, bs); // Passe para o serviço
-    // ...resto do código
+    await service.atualizarStatus(id, status, motivo_recusa, bs); 
     res.status(200).json({ sucesso: true, mensagem: `Status updated para ${status}` });
   } catch (error) {
     console.error(`[Erro ao atualizar status da PS ${id}]:`, error);
@@ -71,7 +69,6 @@ const atualizarStatus = async (req, res) => {
   }
 };
 
-// PROCESSA OS NOVOS ANEXOS ENVIADOS PELA LOGÍSTICA
 const adicionarAnexosExtras = async (req, res) => {
   const { id } = req.params;
   const { anexos } = req.body;
@@ -85,7 +82,6 @@ const adicionarAnexosExtras = async (req, res) => {
   }
 };
 
-// 👇 Adiciona antes do module.exports
 const removerAnexo = async (req, res) => {
   const { anexoId } = req.params;
   try {
@@ -98,14 +94,10 @@ const removerAnexo = async (req, res) => {
 };
 
 const reverterItem = async (req, res) => {
-  // Pega o ID que o frontend enviou quando clicaste no botão
   const { id_item } = req.body;
 
   try {
-    // Manda o serviço fazer a matemática
     await service.reverterItemParaEstoque(id_item);
-    
-    // Devolve sucesso para o frontend
     res.status(200).json({ sucesso: true, mensagem: 'Item revertido para o estoque com sucesso!' });
   } catch (error) {
     console.error(`[Erro ao reverter item ${id_item}]:`, error.message);
@@ -118,9 +110,7 @@ const atualizarLocalizacao = async (req, res) => {
     const { id } = req.params;
     const { filial, centro, deposito } = req.body;
 
-    // 👇 O AJUSTE FOI AQUI: mudamos de 'solicitacoesService' para 'service'
     await service.atualizarLocalizacao(id, { filial, centro, deposito });
-    
     res.json({ sucesso: true, mensagem: 'Localização atualizada com sucesso!' });
   } catch (error) {
     console.error("Erro ao atualizar localização:", error);
@@ -129,7 +119,6 @@ const atualizarLocalizacao = async (req, res) => {
 };
 
 module.exports = {
-
   listar,
   criarMaterial,
   criarTransferencia,

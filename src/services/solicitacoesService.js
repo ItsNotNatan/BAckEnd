@@ -2,7 +2,6 @@
 const supabase = require('../config/supabase');
 
 // --- 🛠️ FUNÇÃO AUXILIAR: Validador de ID ---
-// Se o ID for uma string gerada pelo frontend (ex: "manual-123"), ele devolve null
 const limparIdEstoque = (id) => {
   if (!id) return null;
   const idString = String(id);
@@ -11,37 +10,32 @@ const limparIdEstoque = (id) => {
 };
 
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
-// Reparar que agora temos um 4º parâmetro aqui: numeroDaNota
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
-  // 1. Gera o PS Bonito (Ex: PS-20260724-5192)
   const dataAtual = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);
   const psGerado = `PS-${dataAtual}-${numeroAleatorio}`;
   
   console.log(`💾 Iniciando gravação da solicitação: ${psGerado}`);
 
-  // 2. Salva a Solicitação e pede ao Supabase para devolver o UUID gerado
   console.log("-> 1/4: Tentando gravar na tabela 'solicitacoes'...");
   const { data: psData, error: erroPS } = await supabase.from('solicitacoes').insert([{
-    ps: psGerado, // A nova coluna que criamos no banco!
+    ps: psGerado, 
     ...dadosPrincipais
-  }]).select('id, ps').single(); // Pede o retorno do UUID (id) e do PS
+  }]).select('id, ps').single(); 
 
   if (erroPS) throw erroPS;
 
-  const uuidGerado = psData.id; // Pegamos o UUID real (ex: 550e8400-e29b...)
+  const uuidGerado = psData.id; 
 
-  // 3. Salva os Itens usando o UUID
   if (itensArray && itensArray.length > 0) {
     const itensParaInserir = itensArray.map(item => ({
-      solicitacao_id: uuidGerado, // Usa o UUID
+      solicitacao_id: uuidGerado, 
       ...item
     }));
     const { error: erroItens } = await supabase.from('solicitacoes_itens').insert(itensParaInserir);
     if (erroItens) throw erroItens;
   }
 
-  // 4. Salva os Anexos usando o UUID
   if (anexosArray && anexosArray.length > 0) {
     const anexosParaInserir = anexosArray.map(anexo => ({
       solicitacao_id: uuidGerado,
@@ -52,7 +46,6 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
     if (erroAnexos) throw erroAnexos;
   }
 
-  // 5. Salva a Nota Fiscal usando o UUID
   if (numeroDaNota) {
     const { error: erroNF } = await supabase.from('notas_fiscais').insert([{
       solicitacao_id: uuidGerado,
@@ -61,7 +54,6 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
     if (erroNF) throw erroNF;
   }
 
-  // Devolve um objeto com o UUID e o PS para o controller
   return { id: uuidGerado, ps: psGerado }; 
 };
 
@@ -69,15 +61,13 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
 // 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
 // =========================================================
 
-const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') => {
-  // 1. Calcula o intervalo inclusivo do índice (0-based) aceito pelo range do Supabase
+// 👇 AQUI: Adicionamos o parâmetro filial na listagem
+const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', filial = '') => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // 2. Monta a base da query pedindo explicitamente o contador absoluto de registros no banco
   let query = supabase
     .from('solicitacoes')
-    // Adicionei 'filial_origem_id' aqui na string do select
     .select(`
       id, ps, bs, tipo, nome_solicitante, wbs_destino, wbs_origem, filial_origem_id, observacoes, 
       data_necessidade, entrega_urgente, status, created_at, updated_at, 
@@ -85,24 +75,25 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') =
       anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
     `, { count: 'exact' });
 
-  // 3. Aplica o filtro por tipo/categoria se a aba selecionada for diferente de 'Todos'
   if (tipo && tipo !== 'Todos') {
     query = query.eq('tipo', tipo);
   }
 
-  // 4. Aplica busca textual inteligente utilizando 'OR' nas colunas-chave do banco
+  // 👇 AQUI: Filtramos pela filial (se existir)
+  if (filial) {
+    query = query.eq('filial_origem_id', filial);
+  }
+
   if (busca) {
     query = query.or(`id.ilike.%${busca}%,nome_solicitante.ilike.%${busca}%,wbs_destino.ilike.%${busca}%,wbs_origem.ilike.%${busca}%`);
   }
 
-  // 5. Executa a ordenação decrescente e fatia trazendo cirurgicamente os 10 itens desejados
   const { data, error, count } = await query
     .order('created_at', { ascending: false })
     .range(from, to);
 
   if (error) throw error;
 
-  // 6. Realiza o mapeamento padrão dos dados para o layout da sua tabela
   const dadosFormatados = data.map(sol => {
     let numeroBS = null;
     if (sol.boletins_saida) {
@@ -120,12 +111,8 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') =
       solicitante: sol.nome_solicitante || 'Não informado',
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
       bs: numeroBS ? `BS #${numeroBS}` : null,
-      
-      // 👇 Mapeamos a filial para que o frontend possa exibir na listagem
       filial: sol.filial_origem_id || '-',
-      
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      
       dataCriacaoISO: sol.created_at,
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
       dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
@@ -137,13 +124,13 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '') =
     };
   });
 
-  // Retorna um objeto contendo a página atual de dados e o contador global atualizado
   return { 
     dados: dadosFormatados, 
     total: count || 0 
   };
 };
 
+// Em todas as funções de criação, adicionamos: filial_origem_id: solicitante.filial_origem || solicitante.filial_id
 const criarMaterial = async (solicitante, itens, anexos) => {
   const dados = {
     tipo: 'Material',
@@ -153,7 +140,8 @@ const criarMaterial = async (solicitante, itens, anexos) => {
     data_necessidade: solicitante.dataNecessidade || null,
     observacoes: solicitante.observacoes,
     entrega_urgente: solicitante.entregaUrgente || false,
-    status: 'Pendente'
+    status: 'Pendente',
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
   const itensDB = itens.map(i => ({
@@ -177,7 +165,8 @@ const criarTransferencia = async (solicitante, itens, anexos) => {
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
     entrega_urgente: solicitante.entregaUrgente || false,
-    status: 'Pendente'
+    status: 'Pendente',
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
   const itensDB = itens.map(i => ({
@@ -197,8 +186,7 @@ const criarEntrada = async (solicitante, itens, anexos) => {
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
     status: 'Pendente',
-    // 👇 Guarda a filial escolhida pelo cliente!
-    filial_origem_id: solicitante.filial_id
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
   const itensDB = itens.map(i => {
@@ -238,7 +226,8 @@ const criarCrossdocking = async (solicitante, itens, anexos) => {
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Pendente'
+    status: 'Pendente',
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
   const itensDB = (itens || []).map(i => ({
@@ -256,7 +245,8 @@ const criarNotaFiscal = async (solicitante, anexos) => {
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Pendente'
+    status: 'Pendente',
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
   let valorStr = String(solicitante.valorEstimado || '0');
@@ -283,18 +273,20 @@ const criarReintegracao = async (solicitante, anexos) => {
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: `[Reintegração] Originado do BS #${solicitante.bs_origem}`,
-    status: 'Pendente'
+    status: 'Pendente',
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
   return await salvarNoBanco(dados, [], anexos);
 };
 
 const cancelarBS = async (solicitante, anexos) => {
   const dados = {
-    tipo: 'Crossdocking',
+    tipo: 'Crossdocking', // Conforme o teu código original
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Cancelado'
+    status: 'Cancelado',
+    filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
   return await salvarNoBanco(dados, [], anexos);
 };
@@ -426,7 +418,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
       }
     }
 
-    // CASO 2: É UMA ENTRADA (Temos de criar novos saldos na prateleira)
+    // CASO 2: É UMA ENTRADA
     else if (solicitacao.tipo === 'Entrada') {
       console.log("🛠️ [BACKEND - ETAPA 1] Solicitação é do tipo Entrada. A procurar itens da solicitação...");
 
@@ -576,7 +568,6 @@ const buscarHistoricoItem = async (estoqueId) => {
 };
 
 const atualizarLocalizacao = async (id, dadosLocal) => {
-  // 1. Atualiza a filial na tabela de solicitações
   if (dadosLocal.filial) {
     const { error: erroSol } = await supabase
       .from('solicitacoes')
@@ -586,7 +577,6 @@ const atualizarLocalizacao = async (id, dadosLocal) => {
     if (erroSol) throw erroSol;
   }
 
-  // 2. Atualiza o centro e o depósito na tabela de itens
   if (dadosLocal.centro || dadosLocal.deposito) {
     const atualizacaoItens = {};
     if (dadosLocal.centro) atualizacaoItens.centro = dadosLocal.centro;
