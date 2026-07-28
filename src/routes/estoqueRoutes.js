@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/estoqueController');
 
-// Define o endpoint de listagem
+// 🟢 ROTA PÚBLICA: O cliente pode ver o estoque sem login
 router.get('/listar', ctrl.listar);
 
 module.exports = router;

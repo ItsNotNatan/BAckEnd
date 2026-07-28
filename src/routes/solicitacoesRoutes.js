@@ -3,12 +3,13 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/solicitacoesController');
 
-// ==========================================================
-// ROTAS MODULARIZADAS DE SOLICITAÇÕES
-// ==========================================================
+// 👇 2. Importamos o seu middleware de segurança AQUI!
+const verificarToken = require('../middlewares/authMiddleware');
 
-router.get('/listar', ctrl.listar);
-
+// ==========================================================
+// 🟢 ROTAS PÚBLICAS (CLIENTE PODE USAR SEM LOGIN)
+// ==========================================================
+router.get('/listar', ctrl.listar); // O cliente precisa listar para acompanhar os pedidos
 router.post('/material', ctrl.criarMaterial);
 router.post('/transferencia', ctrl.criarTransferencia);
 router.post('/entrada', ctrl.criarEntrada);
@@ -16,14 +17,15 @@ router.post('/crossdocking', ctrl.criarCrossdocking);
 router.post('/nota-fiscal', ctrl.criarNotaFiscal);
 router.post('/reintegracao', ctrl.criarReintegracao);
 router.post('/cancelamento', ctrl.cancelarBS);
-router.post('/reverter', ctrl.reverterItem);
 
-// 👇 NOVA ROTA ADICIONADA PARA OS ANEXOS EXTRAS DA LOGÍSTICA
-router.post('/:id/anexos', ctrl.adicionarAnexosExtras); 
+// ==========================================================
+// 🔴 ROTAS PROTEGIDAS (SÓ A LOGÍSTICA PODE USAR)
+// Colocamos o "verificarToken" no meio, como um escudo!
+// ==========================================================
+router.post('/reverter', verificarToken, ctrl.reverterItem);
+router.post('/:id/anexos', verificarToken, ctrl.adicionarAnexosExtras); 
+router.patch('/:id/status', verificarToken, ctrl.atualizarStatus);
+router.patch('/:id/local', verificarToken, ctrl.atualizarLocalizacao);
+router.delete('/anexo/:anexoId', verificarToken, ctrl.removerAnexo);
 
-router.patch('/:id/status', ctrl.atualizarStatus);
-router.patch('/:id/local', ctrl.atualizarLocalizacao);
-
-// 👇 Adiciona junto das tuas outras rotas (perto da rota POST de anexos que fizemos antes)
-router.delete('/anexo/:anexoId', ctrl.removerAnexo);
 module.exports = router;
