@@ -10,7 +10,15 @@ const limparIdEstoque = (id) => {
 };
 
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
+// --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
+  
+  // 🛡️ NOVA TRAVA DE SEGURANÇA PARA A FILIAL "TODOS"
+  // Verifica se a filial está vazia ou se é "TODOS". Se for, bloqueia e devolve um erro claro.
+  if (!dadosPrincipais.filial_origem_id || dadosPrincipais.filial_origem_id === 'TODOS') {
+    throw new Error("Ação bloqueada: Por favor, selecione uma filial física (BR02, BR04, BR06) no topo da página antes de enviar a solicitação.");
+  }
+
   const dataAtual = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);
   const psGerado = `PS-${dataAtual}-${numeroAleatorio}`;
@@ -61,7 +69,6 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
 // 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
 // =========================================================
 
-// 👇 AQUI: Adicionamos o parâmetro filial na listagem
 const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', filial = '') => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -79,8 +86,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
     query = query.eq('tipo', tipo);
   }
 
-  // 👇 AQUI: Filtramos pela filial (se existir)
-  if (filial) {
+  if (filial && filial !== 'TODOS') {
     query = query.eq('filial_origem_id', filial);
   }
 
@@ -130,7 +136,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   };
 };
 
-// Em todas as funções de criação, adicionamos: filial_origem_id: solicitante.filial_origem || solicitante.filial_id
 const criarMaterial = async (solicitante, itens, anexos) => {
   const dados = {
     tipo: 'Material',
@@ -281,7 +286,7 @@ const criarReintegracao = async (solicitante, anexos) => {
 
 const cancelarBS = async (solicitante, anexos) => {
   const dados = {
-    tipo: 'Crossdocking', // Conforme o teu código original
+    tipo: 'Crossdocking',
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
@@ -331,25 +336,34 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
   if (erroPS) throw erroPS;
 
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
+  
+  // ✨ NOVO: Preparar variável para receber o BS
+  let numeroBSGerado = null; 
 
   if (foiAprovado) {
 
     if (solicitacao.tipo !== 'Entrada') {
-      const { error: erroBS } = await supabase
+      // ✨ NOVO: Adicionado .select('numero_bs') para capturar o número imediatamente
+      const { data: dadosBS, error: erroBS } = await supabase
         .from('boletins_saida')
         .insert([{
           solicitacao_id: id,
           status: statusFinal === 'Concluído' ? 'Concluído' : 'Em Separação'
-        }]);
+        }])
+        .select('numero_bs')
+        .single();
 
       if (erroBS && erroBS.code !== '23505') throw erroBS;
+      
+      // ✨ NOVO: Guardamos o número retornado pelo banco
+      if (dadosBS) {
+        numeroBSGerado = dadosBS.numero_bs;
+      }
     }
 
     const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
 
-    // CASO 1: É UMA SAÍDA OU TRANSFERÊNCIA
     if (tiposDeSaida.includes(solicitacao.tipo)) {
-
       const { data: itensPedidos } = await supabase
         .from('solicitacoes_itens')
         .select('estoque_id, quantidade_solicitada')
@@ -366,7 +380,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
               .single();
 
             if (estoqueAtual) {
-              // --- PARTE A: ABATER O SALDO DA ORIGEM ---
               const saldoAtual = Number(estoqueAtual.quantidade_disponivel || 0);
               const quantidadeRetirada = Number(item.quantidade_solicitada || 0);
 
@@ -383,7 +396,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
                 })
                 .eq('id', item.estoque_id);
 
-              // --- PARTE B: CRIAR A NOVA LINHA NO ESTOQUE SE FOR TRANSFERÊNCIA ---
               if (solicitacao.tipo === 'Transferencia WBS') {
                 console.log(`🔄 [TRANSFERÊNCIA] Criando nova entrada para o WBS: ${solicitacao.wbs_destino}`);
                 
@@ -418,7 +430,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
       }
     }
 
-    // CASO 2: É UMA ENTRADA
     else if (solicitacao.tipo === 'Entrada') {
       console.log("🛠️ [BACKEND - ETAPA 1] Solicitação é do tipo Entrada. A procurar itens da solicitação...");
 
@@ -430,8 +441,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
       if (erroBuscaItens) {
         console.error("❌ [BACKEND - ERRO] Falha ao procurar itens da solicitação:", erroBuscaItens);
       }
-
-      console.log("🛠️ [BACKEND - ETAPA 2] Itens encontrados para a Entrada:", itensEntrada);
 
       if (itensEntrada && itensEntrada.length > 0) {
         const novoEstoqueLotes = itensEntrada.map(item => ({
@@ -446,8 +455,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
           quantidade_disponivel: item.quantidade_solicitada,
           status: 'Disponível'
         }));
-
-        console.log("🛠️ [BACKEND - ETAPA 3] Objeto montado para inserir no Estoque:", novoEstoqueLotes);
 
         const { error: erroEstoque } = await supabase
           .from('estoque')
@@ -464,7 +471,8 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroBS) => {
     }
   }
 
-  return true;
+  // ✨ NOVO: Retorna o BS para o Controller usar!
+  return { sucesso: true, numeroBS: numeroBSGerado };
 };
 
 const salvarAnexosExtras = async (solicitacaoId, anexosArray) => {
