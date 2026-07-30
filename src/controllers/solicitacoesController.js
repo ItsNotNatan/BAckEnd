@@ -118,6 +118,32 @@ const atualizarLocalizacao = async (req, res) => {
   }
 };
 
+// Recebe a requisição de atualização dos itens (Edição Inline)
+const atualizarItens = async (req, res) => {
+  const { id } = req.params;
+  const { itens } = req.body;
+
+  try {
+    // Validação: garante que o frontend enviou um Array (lista)
+    if (!itens || !Array.isArray(itens)) {
+      return res.status(400).json({ 
+        sucesso: false, 
+        erro: 'O formato dos itens é inválido. Esperava-se uma lista de itens.' 
+      });
+    }
+
+    // Chama o Service para fazer a magia no banco de dados
+    await service.atualizarItensDaSolicitacao(id, itens);
+    
+    console.log(`✅ [SUCESSO] Itens da Solicitação ${id} atualizados com sucesso!`);
+    res.status(200).json({ sucesso: true, mensagem: 'Itens atualizados com sucesso.' });
+    
+  } catch (error) {
+    console.error(`[Erro ao atualizar itens da PS ${id}]:`, error);
+    res.status(500).json({ sucesso: false, erro: 'Falha ao gravar os itens na base de dados.' });
+  }
+};
+
 module.exports = {
   listar,
   criarMaterial,
@@ -131,5 +157,6 @@ module.exports = {
   atualizarStatus,
   removerAnexo,
   reverterItem,
-  adicionarAnexosExtras
+  adicionarAnexosExtras,
+  atualizarItens
 };

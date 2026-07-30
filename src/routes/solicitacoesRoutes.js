@@ -24,6 +24,7 @@ router.post('/cancelamento', ctrl.cancelarBS);
 // ==========================================================
 router.post('/reverter', verificarToken, ctrl.reverterItem);
 router.post('/:id/anexos', verificarToken, ctrl.adicionarAnexosExtras); 
+router.patch('/:id/itens', verificarToken, ctrl.atualizarItens);
 router.patch('/:id/status', verificarToken, ctrl.atualizarStatus);
 router.patch('/:id/local', verificarToken, ctrl.atualizarLocalizacao);
 router.delete('/anexo/:anexoId', verificarToken, ctrl.removerAnexo);

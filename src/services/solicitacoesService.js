@@ -601,6 +601,67 @@ const atualizarLocalizacao = async (id, dadosLocal) => {
   return true;
 };
 
+// =========================================================
+// ✏️ ATUALIZAÇÃO DE ITENS (EDIÇÃO INLINE)
+// =========================================================
+// =========================================================
+// ✏️ ATUALIZAÇÃO DE ITENS (EDIÇÃO INLINE)
+// =========================================================
+const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
+  // 1. Apagamos os itens antigos vinculados a esta solicitação.
+  const { error: erroDelete } = await supabase
+    .from('solicitacoes_itens')
+    .delete()
+    .eq('solicitacao_id', solicitacaoId);
+
+  if (erroDelete) throw erroDelete;
+
+  // 2. Se a lista ficou vazia, terminamos a função aqui com sucesso.
+  if (!itens || itens.length === 0) return true;
+
+  // 3. Mapeamos os campos recebidos do Frontend para as colunas exatas do teu banco
+  const itensDB = itens.map(i => {
+    // Tratamento seguro para transformar valores em dinheiro em números decimais
+    let precoLimpo = 0;
+    if (i.poNetPrice) {
+      let v = String(i.poNetPrice).replace(/[^\d.,-]/g, '');
+      if (v.includes('.') && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
+      else if (v.includes(',')) v = v.replace(',', '.');
+      precoLimpo = parseFloat(v) || 0;
+    }
+
+    return {
+      solicitacao_id: solicitacaoId,
+      part_number_manual: i.numPecaFabricante || i.part_number || null,
+      fornecedor: i.fornecedor || null,
+      quantidade_solicitada: Math.max(1, Number(i.qtdFornecida || i.quantidade_solicitada || i.quantidade || i.qtd || 1)),
+      nf_entrada: i.nfEntrada || null,
+      unidade_medida_manual: i.unidadeMedida || 'Unid',
+      descricao_manual: i.vendorDescription || i.materialDescription || i.descricao || 'Sem descrição',
+      wbs_element: i.wbsElement || null,
+      
+      // ❌ REMOVIDO: data_necessidade (pertence à tabela 'solicitacoes' e não aos itens)
+      
+      emissao_nf: i.emissaoNF ? i.emissaoNF : null,
+      receb_nf: i.recebNF ? i.recebNF : null,
+      documento_compras: i.docCompras || null,
+      valor_unitario_manual: precoLimpo,
+      centro: i.centro || null,
+      deposito: i.deposito || null,
+      alocacao: i.alocacao || null
+    };
+  });
+
+  // 4. Inserimos a nova lista na base de dados
+  const { error: erroInsert } = await supabase
+    .from('solicitacoes_itens')
+    .insert(itensDB);
+
+  if (erroInsert) throw erroInsert;
+
+  return true;
+};
+
 module.exports = {
   listarSolicitacoes,
   criarMaterial,
@@ -615,5 +676,6 @@ module.exports = {
   reverterItemParaEstoque,
   buscarHistoricoItem,
   atualizarLocalizacao,
-  salvarAnexosExtras
+  salvarAnexosExtras,
+  atualizarItensDaSolicitacao
 };

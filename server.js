@@ -31,6 +31,9 @@ app.use('/api/solicitacoes', solicitacoesRoutes);
 const estoqueRoutes = require('./src/routes/estoqueRoutes');
 app.use('/api/estoque', estoqueRoutes);
 
+const usuariosRoutes = require('./src/routes/usuariosRoutes');
+app.use('/api/usuarios', usuariosRoutes);
+
 // ==========================================
 // INICIALIZAÇÃO DO SERVIDOR
 // ==========================================
