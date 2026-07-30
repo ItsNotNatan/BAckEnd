@@ -28,5 +28,7 @@ router.patch('/:id/itens', verificarToken, ctrl.atualizarItens);
 router.patch('/:id/status', verificarToken, ctrl.atualizarStatus);
 router.patch('/:id/local', verificarToken, ctrl.atualizarLocalizacao);
 router.delete('/anexo/:anexoId', verificarToken, ctrl.removerAnexo);
+// Adiciona logo por baixo de router.get('/listar', ctrl.listar);
+router.get('/demandas/material/:partNumber', ctrl.listarDemandasPorMaterial);
 
 module.exports = router;

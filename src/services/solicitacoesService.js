@@ -662,6 +662,25 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
   return true;
 };
 
+// =========================================================
+// 🔍 BUSCAR DEMANDAS POR MATERIAL (INNER JOIN)
+// =========================================================
+const listarDemandasPorMaterial = async (partNumber) => {
+  // O "!inner" obriga o Supabase a trazer a solicitação "pai" junto com o item
+  const { data, error } = await supabase
+    .from('solicitacoes_itens')
+    .select(`
+      quantidade_solicitada,
+      solicitacoes!inner (
+        ps, bs, nome_solicitante, wbs_destino, status, created_at, data_necessidade
+      )
+    `)
+    .eq('part_number_manual', partNumber);
+
+  if (error) throw error;
+  return data;
+};
+
 module.exports = {
   listarSolicitacoes,
   criarMaterial,
@@ -677,5 +696,6 @@ module.exports = {
   buscarHistoricoItem,
   atualizarLocalizacao,
   salvarAnexosExtras,
-  atualizarItensDaSolicitacao
+  atualizarItensDaSolicitacao,
+  listarDemandasPorMaterial
 };

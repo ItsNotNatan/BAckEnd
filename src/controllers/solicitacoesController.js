@@ -144,6 +144,32 @@ const atualizarItens = async (req, res) => {
   }
 };
 
+const listarDemandasPorMaterial = async (req, res) => {
+  const { partNumber } = req.params;
+
+  try {
+    const dados = await service.listarDemandasPorMaterial(partNumber);
+
+    // Formatamos os dados exatamente como a tua <TabelaDemandas /> gosta!
+    const dadosFormatados = dados.map(item => ({
+      id: item.solicitacoes.ps,
+      solicitante: item.solicitacoes.nome_solicitante,
+      wbs: item.solicitacoes.wbs_destino || '-',
+      status: item.solicitacoes.status,
+      bs: item.solicitacoes.bs || '-',
+      criacaoBs: new Date(item.solicitacoes.created_at).toLocaleDateString('pt-BR'),
+      dataEntrega: item.solicitacoes.data_necessidade ? new Date(item.solicitacoes.data_necessidade).toLocaleDateString('pt-BR') : 'não definido',
+      // Aproveitamos a coluna de contagem para mostrar quantas peças saíram!
+      contagem: `${item.quantidade_solicitada} unid.` 
+    }));
+
+    res.status(200).json({ sucesso: true, dados: dadosFormatados });
+  } catch (error) {
+    console.error(`[Erro ao buscar demandas do PN ${partNumber}]:`, error);
+    res.status(500).json({ sucesso: false, erro: 'Falha ao buscar demandas.' });
+  }
+};
+
 module.exports = {
   listar,
   criarMaterial,
@@ -158,5 +184,6 @@ module.exports = {
   removerAnexo,
   reverterItem,
   adicionarAnexosExtras,
-  atualizarItens
+  atualizarItens,
+  listarDemandasPorMaterial
 };
