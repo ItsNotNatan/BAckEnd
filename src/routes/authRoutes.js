@@ -1,8 +1,8 @@
 // src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase'); // Corrigido a importação baseada no seu arquivo
-const jwt = require('jsonwebtoken'); // 👈 IMPORTAÇÃO NOVA
+const supabase = require('../config/supabase'); 
+const jwt = require('jsonwebtoken'); 
 
 // ROTA DE LOGIN
 router.post('/login', async (req, res) => {
@@ -17,11 +17,10 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    // 2. Busca o usuário no banco de dados
-// 2. Busca o usuário no banco de dados
+    // 2. Busca o utilizador no banco de dados
     const { data: usuario, error } = await supabase
       .from('usuarios')
-      // 👇 A MÁGICA: Adiciona o "filiais_acesso" na busca!
+      // 👇 MUDANÇA: Adicionámos 'filiais_acesso' aqui
       .select('id, nome_completo, email, cargo, filial_padrao_id, filiais_acesso') 
       .eq('email', email)
       .eq('senha', senha) 
@@ -35,30 +34,30 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // 4. ✨ A MAGIA AQUI: Gerar o Token JWT!
-    // Ele assina o token com o ID, email e cargo, usando a chave secreta do seu .env
+    // 4. Gerar o Token JWT
     const token = jwt.sign(
       { 
         id: usuario.id, 
         email: usuario.email, 
         cargo: usuario.cargo 
       },
-      process.env.SUPABASE_JWT_SECRET, // 👈 Garanta que tem isso no seu .env do Node!
-      { expiresIn: '8h' } // O token expira em 8 horas
+      process.env.SUPABASE_JWT_SECRET, 
+      { expiresIn: '8h' } 
     );
 
-    // 5. Devolve os dados do usuário e o TOKEN gerado
+    // 5. Devolve os dados do utilizador e o TOKEN gerado
     res.status(200).json({
       sucesso: true,
       mensagem: 'Login realizado com sucesso!',
-      token: token, // 👈 ENVIANDO O TOKEN PARA O REACT
+      token: token, 
       usuario: {
         id: usuario.id,
         nome: usuario.nome_completo,
         email: usuario.email,
         cargo: usuario.cargo,
         filial: usuario.filial_padrao_id,
-        filiais_acesso: usuario.filiais_acesso //
+        // 👇 MUDANÇA: Enviamos as filiais de acesso para o React!
+        filiais_acesso: usuario.filiais_acesso || [] 
       }
     });
 

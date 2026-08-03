@@ -7,7 +7,7 @@ const supabase = require('../config/supabase');
 const listarUsuarios = async () => {
   const { data, error } = await supabase
     .from('usuarios')
-    // 👇 MUDANÇA 1: Adicionámos o 'filiais_acesso' à pesquisa
+    // 👇 MUDANÇA: 'filiais_acesso' adicionado na pesquisa
     .select('id, nome_completo, email, cargo, filial_padrao_id, filiais_acesso, senha, created_at')
     .order('nome_completo', { ascending: true });
 
@@ -22,13 +22,13 @@ const criarUsuario = async (dadosUsuario) => {
   const { error } = await supabase
     .from('usuarios')
     .insert([{
-      nome_completo: dadosUsuario.nome,
+      nome_completo: dadosUsuario.nome, 
       email: dadosUsuario.email,
       senha: dadosUsuario.senha,
       cargo: dadosUsuario.cargo,
       filial_padrao_id: dadosUsuario.filial_padrao_id || dadosUsuario.filial,
-      // 👇 MUDANÇA 2: Agora o back-end grava o array enviado pelo React
-      filiais_acesso: dadosUsuario.filiais_acesso 
+      // 👇 MUDANÇA: Guardamos o array enviado pelo frontend
+      filiais_acesso: dadosUsuario.filiais_acesso || [] 
     }]);
 
   if (error) throw error;
@@ -36,7 +36,7 @@ const criarUsuario = async (dadosUsuario) => {
 };
 
 /**
- * Atualiza os dados de um utilizador existente (ex: mudar o cargo ou filiais)
+ * Atualiza os dados de um utilizador existente
  */
 const atualizarUsuario = async (id, dadosAtualizados) => {
   const dadosMapeados = {};
@@ -56,8 +56,7 @@ const atualizarUsuario = async (id, dadosAtualizados) => {
   if (dadosAtualizados.senha) {
     dadosMapeados.senha = dadosAtualizados.senha;
   }
-  
-  // 👇 MUDANÇA 3: Mapeamos o array de filiais na edição!
+  // 👇 MUDANÇA: Atualizamos as filiais se elas forem enviadas
   if (dadosAtualizados.filiais_acesso) {
     dadosMapeados.filiais_acesso = dadosAtualizados.filiais_acesso;
   }
@@ -71,8 +70,37 @@ const atualizarUsuario = async (id, dadosAtualizados) => {
   return true;
 };
 
-module.exports = {
-  listarUsuarios,
-  criarUsuario,
-  atualizarUsuario
+// src/services/usuariosService.js
+// Adiciona esta função no final do ficheiro
+
+/**
+ * Deleta um utilizador após confirmar a senha de quem está a solicitar a exclusão
+ */
+const deletarUsuarioComConfirmacao = async (idAlvo, idAdmin, senhaFornecida) => {
+  // 1. Buscar a senha real do Administrador na base de dados
+  const { data: admin, error: erroAdmin } = await supabase
+    .from('usuarios')
+    .select('senha')
+    .eq('id', idAdmin)
+    .single();
+
+  if (erroAdmin || !admin) throw new Error('Não foi possível verificar a identidade do administrador.');
+
+  // 2. Verificar se a senha confere
+  if (admin.senha !== senhaFornecida) {
+    throw new Error('A senha de confirmação está incorreta. Exclusão cancelada.');
+  }
+
+  // 3. Tudo certo! Proceder com a exclusão do utilizador alvo
+  const { error: erroDelete } = await supabase
+    .from('usuarios')
+    .delete()
+    .eq('id', idAlvo);
+
+  if (erroDelete) throw new Error('Erro ao apagar o utilizador na base de dados.');
+  
+  return true;
 };
+
+// Lembra-te de exportar também esta função no module.exports
+module.exports = { listarUsuarios, criarUsuario, atualizarUsuario, deletarUsuarioComConfirmacao };

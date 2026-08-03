@@ -44,5 +44,28 @@ const atualizar = async (req, res) => {
     res.status(500).json({ sucesso: false, erro: 'Falha ao atualizar dados.' });
   }
 };
+// src/controllers/usuariosController.js
+// Adiciona esta função junto das outras (listar, criar, atualizar)
 
-module.exports = { listar, criar, atualizar };
+const deletar = async (req, res) => {
+  const idAlvo = req.params.id; // O ID do utilizador que vai ser apagado
+  const { senha_admin } = req.body; // A senha que o administrador digitou no modal
+  const idLogado = req.usuario.id; // ID extraído do Token JWT de quem está a fazer o pedido
+
+  try {
+    if (!senha_admin) {
+      return res.status(400).json({ sucesso: false, erro: 'A senha de confirmação é obrigatória.' });
+    }
+
+    // 1. O serviço vai validar a senha e deletar o usuário se estiver correta
+    await service.deletarUsuarioComConfirmacao(idAlvo, idLogado, senha_admin);
+    
+    res.status(200).json({ sucesso: true, mensagem: 'Utilizador removido com sucesso!' });
+  } catch (error) {
+    console.error(`[Erro ao deletar utilizador ${idAlvo}]:`, error.message);
+    res.status(401).json({ sucesso: false, erro: error.message || 'Falha ao remover utilizador.' });
+  }
+};
+
+// Não te esqueças de exportar o 'deletar' no module.exports no final do ficheiro!
+module.exports = { listar, criar, atualizar, deletar };
