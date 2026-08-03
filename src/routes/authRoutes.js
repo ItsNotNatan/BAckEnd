@@ -18,9 +18,11 @@ router.post('/login', async (req, res) => {
 
   try {
     // 2. Busca o usuário no banco de dados
+// 2. Busca o usuário no banco de dados
     const { data: usuario, error } = await supabase
       .from('usuarios')
-      .select('id, nome_completo, email, cargo, filial_padrao_id')
+      // 👇 A MÁGICA: Adiciona o "filiais_acesso" na busca!
+      .select('id, nome_completo, email, cargo, filial_padrao_id, filiais_acesso') 
       .eq('email', email)
       .eq('senha', senha) 
       .single();
@@ -55,7 +57,8 @@ router.post('/login', async (req, res) => {
         nome: usuario.nome_completo,
         email: usuario.email,
         cargo: usuario.cargo,
-        filial: usuario.filial_padrao_id
+        filial: usuario.filial_padrao_id,
+        filiais_acesso: usuario.filiais_acesso //
       }
     });
 
