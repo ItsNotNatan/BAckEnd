@@ -1,12 +1,14 @@
 // =================================================================
-// ARQUIVO: src/routes/usuarioRoutes.js
+// ARQUIVO: src/routes/usuariosRoutes.js
 // DESCRIÇÃO: Rotas de gestão de utilizadores protegidas por JWT
 // =================================================================
 
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
-const verificarToken = require('../middlewares/verificarToken'); // Importa a proteção JWT
+
+// 🛡️ CORREÇÃO: Apontando para o nome real do ficheiro no teu disco ('authMiddleware')
+const verificarToken = require('../middlewares/authMiddleware'); 
 
 /**
  * @route   GET /api/usuarios/listar
@@ -41,7 +43,6 @@ router.delete('/:id', verificarToken, async (req, res) => {
   const { senha_admin } = req.body;
   const usuarioLogadoId = req.usuario.id; // Extraído do JWT pelo verificarToken
 
-  // 1. Validação simples dos dados recebidos
   if (!senha_admin) {
     return res.status(400).json({ 
       sucesso: false, 
@@ -50,7 +51,7 @@ router.delete('/:id', verificarToken, async (req, res) => {
   }
 
   try {
-    // 2. Confirma a senha do Administrador que está a realizar a ação
+    // Confirma a senha do Administrador que está a realizar a ação
     const { data: admin, error: erroAdmin } = await supabase
       .from('usuarios')
       .select('senha')
@@ -64,7 +65,7 @@ router.delete('/:id', verificarToken, async (req, res) => {
       });
     }
 
-    // 3. Executa a exclusão do utilizador-alvo na tabela
+    // Executa a exclusão do utilizador-alvo na tabela
     const { error: erroExclusao } = await supabase
       .from('usuarios')
       .delete()
