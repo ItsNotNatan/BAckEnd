@@ -1,42 +1,27 @@
-require('dotenv').config();
+// =================================================================
+// ARQUIVO: server.js
+// DESCRIÇÃO: Ponto de entrada da aplicação Node.js / Express
+// =================================================================
+
+require('dotenv').config(); // Carrega as variáveis do ficheiro .env
 const express = require('express');
 const cors = require('cors');
 
-// Inicialização do App
-const app = express();
-const PORT = process.env.PORT || 3001;
-
-// MIDDLEWARES
-app.use(cors()); 
-app.use(express.json()); 
-
-// ROTAS BÁSICAS
-app.get('/api/status', (req, res) => {
-  res.status(200).json({ status: 'online', mensagem: 'API NexusLog rodando com sucesso! 🚀' });
-});
-
-// ==========================================
-// REGISTRO DE ROTAS
-// ==========================================
-
-// Rotas de Autenticação
 const authRoutes = require('./src/routes/authRoutes');
+const usuarioRoutes = require('./src/routes/usuarioRoutes');
+
+const app = express();
+
+// Middlewares Globais
+app.use(cors());
+app.use(express.json());
+
+// Registro das Rotas da API
 app.use('/api/auth', authRoutes);
+app.use('/api/usuarios', usuarioRoutes);
 
-// 👇 1. MUDANÇA AQUI: Removemos o verificarToken do server.js!
-// A porta principal está aberta. A segurança agora fica em cada rota específica.
-const solicitacoesRoutes = require('./src/routes/solicitacoesRoutes');
-app.use('/api/solicitacoes', solicitacoesRoutes);
-
-const estoqueRoutes = require('./src/routes/estoqueRoutes');
-app.use('/api/estoque', estoqueRoutes);
-
-const usuariosRoutes = require('./src/routes/usuariosRoutes');
-app.use('/api/usuarios', usuariosRoutes);
-
-// ==========================================
-// INICIALIZAÇÃO DO SERVIDOR
-// ==========================================
+// Inicialização do Servidor
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`[Servidor] Rodando perfeitamente na porta ${PORT} 🚀`);
+  console.log(`🚀 Servidor NexusLog a rodar na porta ${PORT}`);
 });

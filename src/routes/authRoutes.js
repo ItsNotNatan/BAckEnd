@@ -1,32 +1,43 @@
-// src/routes/authRoutes.js
+// =================================================================
+// ARQUIVO: src/routes/authRoutes.js
+// DESCRIÇÃO: Rota de Autenticação (Login) com geração de Token JWT
+// =================================================================
+
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase'); 
-const jwt = require('jsonwebtoken'); 
+const supabase = require('../config/supabase'); // Conexão com a base de dados
+const jwt = require('jsonwebtoken');           // Biblioteca para gerar os Tokens
 
-// ROTA DE LOGIN
+/**
+ * @route   POST /api/auth/login
+ * @desc    Autentica o utilizador e devolve um Token JWT legítimo
+ * @access  Público
+ */
 router.post('/login', async (req, res) => {
   const { email, senha } = req.body;
 
-  // 1. Validação básica
+  // 1. VALIDAÇÃO BÁSICA DOS CAMPOS
+  // Garante que o cliente não enviou dados vazios antes de consultar o banco.
   if (!email || !senha) {
     return res.status(400).json({ 
       sucesso: false, 
-      erro: 'E-mail e senha são obrigatórios.' 
+      erro: 'Por favor, introduza o e-mail e a senha.' 
     });
   }
 
   try {
-    // 2. Busca o utilizador no banco de dados
+    // 2. CONSULTA À BASE DE DADOS (SUPABASE)
+    // Procuramos o utilizador correspondente ao e-mail e à senha fornecidos.
+    // Buscamos explicitamente a coluna 'filiais_acesso' para o controle de permissões.
     const { data: usuario, error } = await supabase
       .from('usuarios')
-      // 👇 MUDANÇA: Adicionámos 'filiais_acesso' aqui
       .select('id, nome_completo, email, cargo, filial_padrao_id, filiais_acesso') 
       .eq('email', email)
-      .eq('senha', senha) 
-      .single();
+      .eq('senha', senha) // Em produção, o ideal será encriptar com bcrypt no futuro
+      .single();          // Traz apenas um único registo
 
-    // 3. Se deu erro na busca ou não encontrou ninguém
+    // 3. VERIFICAÇÃO DE CREDENCIAIS
+    // Se o Supabase devolver erro ou não encontrar nenhum registo, barramos o acesso.
     if (error || !usuario) {
       return res.status(401).json({ 
         sucesso: false, 
@@ -34,7 +45,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // 4. Gerar o Token JWT
+    // 4. GERAÇÃO DO TOKEN JWT REAL E SEGURO
+    // O payload guarda dados essenciais do utilizador (id, email, cargo).
+    // O token é assinado criptograficamente com a chave secreta do ficheiro .env.
     const token = jwt.sign(
       { 
         id: usuario.id, 
@@ -42,13 +55,14 @@ router.post('/login', async (req, res) => {
         cargo: usuario.cargo 
       },
       process.env.SUPABASE_JWT_SECRET, 
-      { expiresIn: '8h' } 
+      { expiresIn: '8h' } // O token expira e invalida-se automaticamente após 8 horas
     );
 
-    // 5. Devolve os dados do utilizador e o TOKEN gerado
+    // 5. RESPOSTA DE SUCESSO
+    // Enviamos o token legítimo e o objeto de perfil que o React vai utilizar.
     res.status(200).json({
       sucesso: true,
-      mensagem: 'Login realizado com sucesso!',
+      mensagem: 'Login realizado com sucesso! Bem-vindo ao NexusLog.',
       token: token, 
       usuario: {
         id: usuario.id,
@@ -56,16 +70,15 @@ router.post('/login', async (req, res) => {
         email: usuario.email,
         cargo: usuario.cargo,
         filial: usuario.filial_padrao_id,
-        // 👇 MUDANÇA: Enviamos as filiais de acesso para o React!
-        filiais_acesso: usuario.filiais_acesso || [] 
+        filiais_acesso: usuario.filiais_acesso || [] // Garante um array vazio se for nulo
       }
     });
 
   } catch (error) {
-    console.error('Erro na rota de login:', error);
+    console.error('Erro crítico na rota de login:', error);
     res.status(500).json({ 
       sucesso: false, 
-      erro: 'Erro interno no servidor.' 
+      erro: 'Ocorreu um erro interno no servidor ao tentar processar o login.' 
     });
   }
 });

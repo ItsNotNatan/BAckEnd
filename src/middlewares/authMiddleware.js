@@ -1,30 +1,40 @@
+// =================================================================
+// ARQUIVO: src/middlewares/verificarToken.js
+// DESCRIÇÃO: Middleware de segurança JWT para rotas protegidas
+// =================================================================
+
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
 
-const verificarToken = (req, res, next) => {
-  // 1. Pega o token que o frontend enviou no cabeçalho (Headers)
-  const tokenHeader = req.headers.authorization;
+function verificarToken(req, res, next) {
+  // 1. EXTRAIR O CABEÇALHO AUTHORIZATION
+  const authHeader = req.headers['authorization'];
+  
+  // O formato esperado é "Bearer <TOKEN>"
+  const token = authHeader && authHeader.split(' ')[1];
 
-  if (!tokenHeader) {
-    return res.status(401).json({ sucesso: false, erro: 'Acesso negado. Você precisa estar logado.' });
+  // 2. VERIFICAR SE O TOKEN FOI FORNECIDO
+  if (!token) {
+    return res.status(401).json({ 
+      sucesso: false, 
+      erro: 'Erro: Token de acesso não fornecido. Faça login novamente.' 
+    });
   }
 
-  // O token vem no formato "Bearer asdfg12345...", então separamos para pegar só o código
-  const token = tokenHeader.split(' ')[1];
+  // 3. VALIDAR A ASSINATURA DO TOKEN JWT
+  jwt.verify(token, process.env.SUPABASE_JWT_SECRET, (err, usuarioDecodificado) => {
+    if (err) {
+      console.error('❌ Falha na validação do JWT:', err.message);
+      return res.status(403).json({ 
+        sucesso: false, 
+        erro: 'Erro: Sessão expirada ou token inválido. Faça login novamente.' 
+      });
+    }
 
-  try {
-    // 2. Verifica se o crachá é verdadeiro usando a assinatura do Supabase
-    const decodificado = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    
-    // 3. Salva os dados do usuário logado dentro da requisição (aqui está o ID dele!)
-    req.usuario = decodificado;
-    
-    // 4. Libera a catraca! Pode continuar para a rota.
-    next();
-  } catch (error) {
-    console.error('[Erro de Token]:', error.message);
-    return res.status(403).json({ sucesso: false, erro: 'Sessão expirada ou token inválido. Faça login novamente.' });
-  }
-};
+    // 4. INJETAR OS DADOS DO UTILIZADOR NA REQUISIÇÃO
+    // Permite que os controllers saibam quem é o utilizador logado (req.usuario.id)
+    req.usuario = usuarioDecodificado;
+    next(); // Permite continuar para a rota pretendida
+  });
+}
 
 module.exports = verificarToken;
