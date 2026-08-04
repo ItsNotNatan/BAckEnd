@@ -1,0 +1,263 @@
+/* CONTAINER GERAL DA PÁGINA */
+.traceabilly-wrapper {
+  padding: 32px;
+  background-color: #f4f5f7; /* Fundo cinza bem claro */
+  font-family: system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* CABEÇALHO DA PÁGINA */
+.pagina-cabecalho {
+  margin-bottom: 24px;
+}
+
+.pagina-cabecalho h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a1e23;
+  margin: 0 0 8px 0;
+}
+
+.pagina-cabecalho p {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* CARTÃO BRANCO PRINCIPAL */
+.traceabilly-cartao {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  overflow: hidden; /* Mantém o conteúdo dentro das bordas arredondadas */
+}
+
+/* TOPO DO CARTÃO (Título e Pesquisa) */
+.cartao-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.titulo-grupo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icone-azul {
+  color: #3b82f6;
+}
+
+.titulo-grupo h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  color: #0f172a;
+}
+
+.badge-contador {
+  padding: 2px 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+/* BARRA DE PESQUISA */
+.pesquisa-grupo {
+  position: relative;
+  width: 400px;
+}
+
+.icone-pesquisa {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.input-pesquisa {
+  width: 100%;
+  padding: 10px 10px 10px 36px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  font-size: 0.875rem;
+  color: #334155;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-pesquisa:focus {
+  border-color: #93c5fd;
+  background-color: #ffffff;
+}
+
+/* LINHA DE FILTROS RÁPIDOS */
+.filtros-linha {
+  display: flex;
+  gap: 24px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  background-color: #ffffff;
+}
+
+.btn-filtro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.btn-filtro:hover {
+  color: #0f172a;
+}
+
+.btn-filtro.destaque {
+  color: #eab308; /* Amarelo da imagem */
+}
+
+/* CONTAINER DA TABELA E SCROLL HORIZONTAL */
+.tabela-container {
+  width: 100%;
+  overflow-x: auto; /* Permite rolar a tabela se for muito larga */
+  padding-bottom: 16px;
+}
+
+/* Customização da barra de rolagem (opcional, para ficar bonita) */
+.tabela-container::-webkit-scrollbar {
+  height: 8px;
+}
+.tabela-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+  margin: 0 24px;
+}
+.tabela-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.tabela-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ESTILOS DA TABELA */
+.tabela-rastreabilidade {
+  width: 100%;
+  min-width: 1000px; /* Garante que a tabela não esmague as colunas */
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tabela-rastreabilidade th {
+  padding: 16px 24px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #fafafa;
+}
+
+.tabela-rastreabilidade td {
+  padding: 16px 24px;
+  font-size: 0.875rem;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+/* UTILITÁRIOS DA TABELA */
+.fonte-forte { font-weight: 600; color: #1e293b; }
+.texto-cinza { color: #64748b; }
+.celula-flex { display: flex; align-items: center; gap: 8px; }
+
+/* BADGES DAS CÉLULAS */
+.badge-borda {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.icone-seta { color: #3b82f6; }
+
+.badge-azul-claro {
+  display: inline-block;
+  padding: 4px 12px;
+  background-color: #e0e7ff; /* Azul bem clarinho */
+  color: #1d4ed8; /* Texto azul escuro */
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.badge-azul-suave {
+  display: inline-block;
+  padding: 4px 12px;
+  background-color: #eff6ff;
+  color: #2563eb;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+/* AVATAR DO SOLICITANTE */
+.avatar-circulo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+/* LINK DE ALOCAÇÃO */
+.link-alocacao {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.link-alocacao:hover {
+  text-decoration: underline;
+}
+
+/* BOTÃO DE REVERTER SAÍDA (LOGÍSTICA) */
+.btn-reverter {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-reverter:hover {
+  color: #3b82f6; /* Azul no hover */
+  background-color: #eff6ff;
+}

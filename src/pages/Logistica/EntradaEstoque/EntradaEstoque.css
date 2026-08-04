@@ -1,0 +1,287 @@
+/* CONTAINER GERAL */
+.estoque-wrapper {
+  padding: 32px;
+  background-color: #f4f5f7;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #334155;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* CABEÇALHO */
+.estoque-cabecalho {
+  margin-bottom: 24px;
+}
+
+.estoque-cabecalho h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+}
+
+.estoque-cabecalho p {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* CARTÕES E ESTRUTURAS BÁSICAS */
+.estoque-cartao {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+/* TÍTULO DO FORMULÁRIO */
+.cartao-titulo-grupo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.icone-fundo-azul {
+  width: 36px;
+  height: 36px;
+  background-color: #eff6ff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icone-azul {
+  color: #2563eb;
+}
+
+.cartao-titulo-grupo h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+/* GRID DO FORMULÁRIO */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.input-grupo {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-grupo label {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.obrigatorio {
+  color: #64748b; /* Asterisco na cor cinza, como na imagem */
+}
+
+/* CAMPOS DE INPUT E SELECT */
+.input-campo {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #334155;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-campo::placeholder {
+  color: #94a3b8;
+}
+
+.input-campo:focus {
+  border-color: #93c5fd;
+  background-color: #ffffff;
+}
+
+.select-campo {
+  appearance: auto;
+  cursor: pointer;
+}
+
+/* BOTÃO DE SUBMISSÃO */
+.form-acoes {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 20px;
+}
+
+.btn-primario {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primario:hover {
+  background-color: #1d4ed8;
+}
+
+/* --- SECÇÃO DA TABELA --- */
+
+.tabela-seccao {
+  background-color: transparent;
+}
+
+/* CONTROLOS DE PESQUISA E FILTRO */
+.tabela-controlos {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.pesquisa-caixa, .filtro-caixa {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pesquisa-caixa {
+  flex: 1; /* Ocupa o restante do espaço */
+}
+
+.filtro-caixa {
+  width: 250px;
+}
+
+.icone-controlo {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+}
+
+.tabela-controlos input {
+  width: 100%;
+  padding: 10px 12px 10px 40px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #334155;
+  outline: none;
+}
+
+.tabela-controlos input:focus {
+  border-color: #93c5fd;
+  background-color: #ffffff;
+}
+
+/* TABELA */
+.tabela-container {
+  width: 100%;
+  overflow-x: auto;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.estoque-tabela {
+  width: 100%;
+  min-width: 1200px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.estoque-tabela th {
+  padding: 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #fafafa;
+}
+
+.estoque-tabela td {
+  padding: 16px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+/* ESTILOS INTERNOS DA TABELA */
+.texto-cinza { color: #64748b; }
+.fonte-negrito { font-weight: 600; color: #1e293b; }
+.texto-azul-claro { color: #3b82f6; }
+.font-bold { font-weight: bold; }
+
+.link-azul {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+.link-azul:hover { text-decoration: underline; }
+
+.saldo-celula {
+  display: flex;
+  flex-direction: column;
+}
+.saldo-celula strong { color: #1e293b; font-size: 0.875rem; }
+.saldo-celula span { color: #64748b; font-size: 0.75rem; }
+
+.wbs-celula {
+  max-width: 120px;
+  word-wrap: break-word; /* Permite a quebra de linha do WBS */
+}
+
+/* BADGE STATUS VERDE */
+.badge-disponivel {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: #ecfdf5;
+  color: #10b981;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.mr-1 { margin-right: 4px; }
+
+/* BOTÃO DE AÇÃO (LIXEIRA) */
+.acao-celula {
+  text-align: center;
+}
+
+.btn-icone {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.btn-icone:hover {
+  color: #ef4444; /* Fica vermelho ao passar o rato */
+  background-color: #fef2f2;
+}

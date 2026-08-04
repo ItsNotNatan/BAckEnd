@@ -1,0 +1,124 @@
+.mostrar-arquivo-container {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01);
+}
+
+.mostrar-arquivo-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  border-bottom: 1px dashed #e2e8f0;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.mostrar-arquivo-header h3 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  color: #475569;
+}
+
+.mostrar-arquivo-qtd {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* LISTA */
+.mostrar-arquivo-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mostrar-arquivo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.mostrar-arquivo-item:hover {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.mostrar-arquivo-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 70%;
+}
+
+/* ÍCONES INTERNOS COM CORES DO NEXUSLOG */
+.mostrar-arquivo-icone-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mostrar-arquivo-icone-wrapper.arq-pdf { background-color: #fff7ed; color: #ea580c; }
+.mostrar-arquivo-icone-wrapper.arq-imagem { background-color: #eff6ff; color: #2563eb; }
+.mostrar-arquivo-icone-wrapper.arq-excel { background-color: #f0fdf4; color: #16a34a; }
+.mostrar-arquivo-icone-wrapper.arq-generico { background-color: #f1f5f9; color: #475569; }
+
+.mostrar-arquivo-textos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.mostrar-arquivo-nome {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mostrar-arquivo-tamanho {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* BOTÃO DE DOWNLOAD DIREITO */
+.btn-download-mostrar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-download-mostrar:hover {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}

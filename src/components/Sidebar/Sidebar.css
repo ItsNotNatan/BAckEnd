@@ -1,0 +1,171 @@
+/* =========================================
+   ESTRUTURA PRINCIPAL DA SIDEBAR
+   ========================================= */
+.sidebar-container {
+  width: 260px;
+  height: 100vh;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  box-sizing: border-box;
+  overflow-x: hidden; /* ✨ Trava qualquer rolagem horizontal na sidebar inteira */
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 16px;
+}
+
+.logo-icone {
+  background-color: #eff6ff;
+  color: #2563eb;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+/* =========================================
+   NAVEGAÇÃO (MENU)
+   ========================================= */
+.sidebar-nav {
+  padding: 0 16px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden; /* ✨ Garante que a área de scroll interno também não vaze para os lados */
+}
+
+.sidebar-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+/* O botão em si */
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Empurra o cadeado para a direita */
+  width: 100%;
+  padding: 12px 16px;
+  box-sizing: border-box; /* ✨ Mantém o botão rigorosamente dentro do limite da tela */
+  text-decoration: none;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  overflow: hidden; /* ✨ Esconde o que tentar vazar */
+}
+
+/* Agrupa o ícone principal e o texto à esquerda */
+.nav-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0; /* ✨ Permite que o texto encolha sem quebrar o layout */
+  flex: 1;
+}
+
+.nav-icone {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0; /* Impede que o ícone amasse */
+}
+
+/* Controle de texto longo */
+.nav-texto {
+  white-space: nowrap; /* Não deixa quebrar linha */
+  overflow: hidden; /* Corta o que sobrar */
+  text-overflow: ellipsis; /* Adiciona "..." no final */
+}
+
+.nav-item:hover {
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+/* Quando o link é a página atual */
+.nav-item.ativo {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.nav-item.ativo .nav-icone {
+  color: #2563eb;
+}
+
+/* =========================================
+   RODAPÉ E BOTÃO DE VOLTAR
+   ========================================= */
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.btn-voltar-sidebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  box-sizing: border-box; /* ✨ Evita que o botão vaze no rodapé */
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-voltar-sidebar:hover {
+  background-color: #f8fafc;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+/* =========================================
+   ESTILOS PARA MENUS DESABILITADOS (TODOS)
+   ========================================= */
+.nav-item.desabilitado {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: auto;
+  background-color: transparent !important;
+  color: inherit;
+}
+
+.nav-item.desabilitado:hover {
+  opacity: 0.5;
+  transform: none;
+}
+
+/* Estilo específico do pequeno cadeado */
+.icone-cadeado {
+  margin-right: 4px;
+  opacity: 0.7;
+  color: #888;
+  flex-shrink: 0; /* Impede que o cadeado fique espremido */
+}

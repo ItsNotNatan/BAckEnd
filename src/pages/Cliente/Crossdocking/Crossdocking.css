@@ -1,0 +1,215 @@
+/* CONTAINER GERAL / LIMITADOR */
+.limitador-largura {
+  max-width: 800px; /* Garante o visual limpo e centralizado igual ao das outras telas */
+  margin: 0 auto;
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  font-family: system-ui, -apple-system, sans-serif;
+  box-sizing: border-box;
+}
+
+/* --- BANNER DE AVISO (CIANO) --- */
+.banner-aviso.banner-ciano {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background-color: #ecfeff; /* Fundo ciano suave */
+  border: 1px solid #a5f3fc;
+  border-radius: 12px;
+  padding: 16px 24px;
+  color: #0891b2; /* Texto ciano escuro */
+}
+
+.banner-aviso.banner-ciano strong {
+  font-weight: 700;
+  font-size: 1rem;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.banner-aviso.banner-ciano p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #0e7490;
+}
+
+/* CARTÕES DE FORMULÁRIO */
+.form-cartao {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+/* HEADER DO FORMULÁRIO */
+.form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.form-header-esquerda {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ÍCONES DO HEADER */
+.form-header-icone.ciano {
+  background-color: #e0f2fe;
+  color: #0284c7;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modificador de ícone redondo */
+.form-header-icone.ciano.redondo {
+  border-radius: 50%;
+  background-color: #ecfeff;
+  color: #0891b2;
+}
+
+.form-header h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+/* GRID DO FORMULÁRIO */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-grid.coluna-unica {
+  grid-template-columns: 1fr;
+}
+
+/* GRUPOS DE INPUT */
+.input-grupo {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-grupo label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.input-campo {
+  width: 100%;
+  padding: 12px 14px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #334155;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+textarea.input-campo {
+  resize: vertical;
+  min-height: 90px;
+}
+
+/* Foco específico para o tema Ciano */
+.input-campo.foco-ciano:focus {
+  border-color: #22d3ee;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.1);
+}
+
+.texto-vermelho {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+/* ÁREA DE DROPZONE (COMPONENTE ANEXAR NOTA) */
+.dropzone.cinza {
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.875rem;
+  cursor: pointer;
+  background-color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.dropzone.cinza:hover {
+  background-color: #f1f5f9;
+  border-color: #0891b2;
+  color: #0891b2;
+}
+
+/* BOTÕES DE SWITCH/TOGGLE (TIPO DE SAÍDA) */
+.botoes-toggle-container {
+  display: flex;
+  gap: 16px;
+}
+
+.btn-toggle {
+  flex: 1;
+  padding: 12px;
+  text-align: center;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-toggle:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.btn-toggle.selecionado {
+  background-color: #ecfeff;
+  border-color: #22d3ee;
+  color: #0891b2;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* RESPONSIVIDADE PARA DISPOSITIVOS MÓVEIS */
+@media (max-width: 768px) {
+  .limitador-largura {
+    padding: 16px 12px;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .botoes-toggle-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
