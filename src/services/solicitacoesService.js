@@ -14,7 +14,7 @@ const limparIdEstoque = (id) => {
 
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
-  
+
   // 🛡️ NOVA TRAVA DE SEGURANÇA PARA A FILIAL "TODOS"
   if (!dadosPrincipais.filial_origem_id || dadosPrincipais.filial_origem_id === 'TODOS') {
     throw new Error("Ação bloqueada: Por favor, selecione uma filial física (BR02, BR04, BR06) no topo da página antes de enviar a solicitação.");
@@ -23,22 +23,22 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
   const dataAtual = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const numeroAleatorio = Math.floor(1000 + Math.random() * 9000);
   const psGerado = `PS-${dataAtual}-${numeroAleatorio}`;
-  
+
   console.log(`💾 Iniciando gravação da solicitação: ${psGerado}`);
 
   console.log("-> 1/4: Tentando gravar na tabela 'solicitacoes'...");
   const { data: psData, error: erroPS } = await supabase.from('solicitacoes').insert([{
-    ps: psGerado, 
+    ps: psGerado,
     ...dadosPrincipais
-  }]).select('id, ps').single(); 
+  }]).select('id, ps').single();
 
   if (erroPS) throw erroPS;
 
-  const uuidGerado = psData.id; 
+  const uuidGerado = psData.id;
 
   if (itensArray && itensArray.length > 0) {
     const itensParaInserir = itensArray.map(item => ({
-      solicitacao_id: uuidGerado, 
+      solicitacao_id: uuidGerado,
       ...item
     }));
     const { error: erroItens } = await supabase.from('solicitacoes_itens').insert(itensParaInserir);
@@ -63,7 +63,7 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
     if (erroNF) throw erroNF;
   }
 
-  return { id: uuidGerado, ps: psGerado }; 
+  return { id: uuidGerado, ps: psGerado };
 };
 
 // =========================================================
@@ -132,9 +132,9 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
     };
   });
 
-  return { 
-    dados: dadosFormatados, 
-    total: count || 0 
+  return {
+    dados: dadosFormatados,
+    total: count || 0
   };
 };
 
@@ -346,7 +346,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   if (erroPS) throw erroPS;
 
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
-  
+
   let numeroPLGerado = null; // 🔄 ATUALIZADO
 
   if (foiAprovado) {
@@ -363,7 +363,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         .single();
 
       if (erroPL && erroPL.code !== '23505') throw erroPL;
-      
+
       if (dadosPL) {
         numeroPLGerado = dadosPL.numero_pl; // 🔄 ATUALIZADO
       }
@@ -380,7 +380,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
       if (itensPedidos && itensPedidos.length > 0) {
         for (const item of itensPedidos) {
           if (item.estoque_id) {
-            
+
             const { data: estoqueAtual } = await supabase
               .from('estoque')
               .select('*')
@@ -406,18 +406,18 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
               if (solicitacao.tipo === 'Transferencia WBS') {
                 console.log(`🔄 [TRANSFERÊNCIA] Criando nova entrada para o WBS: ${solicitacao.wbs_destino}`);
-                
+
                 const itemParaNovoWBS = {
                   material_id: estoqueAtual.material_id,
                   filial_id: estoqueAtual.filial_id,
-                  desenho_sap: estoqueAtual.desenho_sap, 
+                  desenho_sap: estoqueAtual.desenho_sap,
                   part_number: estoqueAtual.part_number,
                   descricao: estoqueAtual.descricao,
                   nf_entrada: estoqueAtual.nf_entrada,
                   documento_compras: estoqueAtual.documento_compras,
                   quantidade_disponivel: quantidadeRetirada,
                   status: 'Disponível',
-                  wbs: solicitacao.wbs_destino, 
+                  wbs: solicitacao.wbs_destino,
                   is_transferencia: true,
                   alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`
                 };
@@ -425,7 +425,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                 const { error: erroTransf } = await supabase
                   .from('estoque')
                   .insert([itemParaNovoWBS]);
-                  
+
                 if (erroTransf) {
                   console.error("❌ Erro ao criar item transferido no estoque:", erroTransf);
                 } else {
@@ -453,6 +453,8 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
       if (itensEntrada && itensEntrada.length > 0) {
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
+          // ✨ CORREÇÃO: Adicionada a linha abaixo para transportar o Desenho SAP para o Estoque!
+          desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
           part_number: item.part_number_manual || 'SEM-PN',
           descricao: item.descricao_manual || 'Sem descrição',
           filial_id: solicitacao.filial_origem_id || 'BR06',
@@ -589,7 +591,7 @@ const atualizarLocalizacao = async (id, dadosLocal) => {
       .from('solicitacoes')
       .update({ filial_origem_id: dadosLocal.filial })
       .eq('id', id);
-      
+
     if (erroSol) throw erroSol;
   }
 
@@ -602,7 +604,7 @@ const atualizarLocalizacao = async (id, dadosLocal) => {
       .from('solicitacoes_itens')
       .update(atualizacaoItens)
       .eq('solicitacao_id', id);
-      
+
     if (erroItens) throw erroItens;
   }
 
