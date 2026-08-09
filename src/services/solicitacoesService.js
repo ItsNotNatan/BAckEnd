@@ -1,6 +1,6 @@
 // =================================================================
 // ARQUIVO: src/services/solicitacoesService.js
-// DESCRIÇÃO: Lógica de negócio e comunicação com o Supabase (Geração de PL para Entrada corrigida)
+// DESCRIÇÃO: Lógica de negócio e comunicação com o Supabase (Pesquisa de Histórico Corrigida)
 // =================================================================
 const supabase = require('../config/supabase');
 
@@ -10,12 +10,11 @@ const limparIdEstoque = (id) => {
   const idString = String(id);
   if (idString.startsWith('manual-')) return null;
   return idString;
-};
+}
 
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
 
-  // 🛡️ TRAVA DE SEGURANÇA PARA A FILIAL "TODOS"
   if (!dadosPrincipais.filial_origem_id || dadosPrincipais.filial_origem_id === 'TODOS') {
     throw new Error("Ação bloqueada: Por favor, selecione uma filial física (BR02, BR04, BR06) no topo da página antes de enviar a solicitação.");
   }
@@ -91,7 +90,8 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   }
 
   if (busca) {
-    query = query.or(`id.ilike.%${busca}%,nome_solicitante.ilike.%${busca}%,wbs_destino.ilike.%${busca}%,wbs_origem.ilike.%${busca}%`);
+    // ✨ CORREÇÃO 1: A pesquisa agora inclui a coluna "ps", permitindo encontrar o histórico!
+    query = query.or(`ps.ilike.%${busca}%,nome_solicitante.ilike.%${busca}%,wbs_destino.ilike.%${busca}%,wbs_origem.ilike.%${busca}%`);
   }
 
   const { data, error, count } = await query
@@ -114,6 +114,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
 
     return {
       id: sol.id,
+      ps: sol.ps, // ✨ CORREÇÃO 2: Garantimos que o 'ps' real é devolvido ao frontend
       tipo: sol.tipo,
       nfCrossdocking: sol.notas_fiscais && sol.notas_fiscais.length > 0 ? sol.notas_fiscais[0].numero_nf : (sol.notas_fiscais?.numero_nf || null),
       solicitante: sol.nome_solicitante || 'Não informado',
@@ -303,9 +304,6 @@ const cancelarPL = async (solicitante, anexos) => {
   return await salvarNoBanco(dados, [], anexos);
 };
 
-// =========================================================
-// 🔄 ATUALIZAÇÃO DE STATUS E MATEMÁTICA DE ESTOQUE
-// =========================================================
 const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
@@ -348,8 +346,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   if (foiAprovado) {
 
-    // ✨ CORREÇÃO: Removemos o "if (solicitacao.tipo !== 'Entrada')". 
-    // Agora o registo é criado em 'packing_lists' para TODOS os tipos aprovados.
     const { data: dadosPL, error: erroPL } = await supabase
       .from('packing_lists')
       .insert([{
@@ -364,7 +360,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
     if (dadosPL && dadosPL.numero_pl) {
       numeroPLGerado = dadosPL.numero_pl; 
 
-      // ✨ GRAVAÇÃO CRÍTICA: Atualiza a coluna 'pl' na tabela 'solicitacoes'
       await supabase
         .from('solicitacoes')
         .update({ pl: `PL #${numeroPLGerado}` })
