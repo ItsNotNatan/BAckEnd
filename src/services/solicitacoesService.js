@@ -334,7 +334,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   let numeroPLGerado = null; 
 
   if (foiAprovado) {
-
     const { data: dadosPL, error: erroPL } = await supabase
       .from('packing_lists')
       .insert([{
@@ -348,7 +347,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
     if (dadosPL && dadosPL.numero_pl) {
       numeroPLGerado = dadosPL.numero_pl; 
-
       await supabase
         .from('solicitacoes')
         .update({ pl: `PL #${numeroPLGerado}` })
@@ -366,7 +364,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
       if (itensPedidos && itensPedidos.length > 0) {
         for (const item of itensPedidos) {
           if (item.estoque_id) {
-
             const { data: estoqueAtual } = await supabase
               .from('estoque')
               .select('*')
@@ -412,8 +409,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           }
         }
       }
-    }
-    else if (solicitacao.tipo === 'Entrada') {
+    } else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
         .select('*')
@@ -515,7 +511,6 @@ const reverterItemParaEstoque = async (idItem) => {
   return true;
 };
 
-// ✨ FUNÇÃO RESTAURADA: Aqui está a função que faltava e que o NodeJS estava à procura!
 const buscarHistoricoItem = async (estoqueId) => {
   const { data, error } = await supabase
     .from('solicitacoes_itens')
@@ -618,6 +613,7 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
   return true;
 };
 
+// ✨ FUNÇÃO ATUALIZADA: Puxa pelo estoque_id
 const listarDemandasPorEstoque = async (estoqueId) => {
   const { data, error } = await supabase
     .from('solicitacoes_itens')
@@ -646,7 +642,7 @@ module.exports = {
   atualizarStatus,
   deletarAnexo,
   reverterItemParaEstoque,
-  buscarHistoricoItem, // ✨ Restaurei a exportação!
+  buscarHistoricoItem,
   salvarAnexosExtras,
   atualizarItensDaSolicitacao,
   listarDemandasPorEstoque
