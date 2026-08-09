@@ -1,10 +1,9 @@
 // =================================================================
 // ARQUIVO: src/services/solicitacoesService.js
-// DESCRIÇÃO: Lógica de negócio e comunicação com o Supabase (Pesquisa de Histórico Corrigida)
+// DESCRIÇÃO: Lógica de negócio e comunicação com o Supabase
 // =================================================================
 const supabase = require('../config/supabase');
 
-// --- 🛠️ FUNÇÃO AUXILIAR: Validador de ID ---
 const limparIdEstoque = (id) => {
   if (!id) return null;
   const idString = String(id);
@@ -12,11 +11,9 @@ const limparIdEstoque = (id) => {
   return idString;
 }
 
-// --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
-
   if (!dadosPrincipais.filial_origem_id || dadosPrincipais.filial_origem_id === 'TODOS') {
-    throw new Error("Ação bloqueada: Por favor, selecione uma filial física (BR02, BR04, BR06) no topo da página antes de enviar a solicitação.");
+    throw new Error("Ação bloqueada: Por favor, selecione uma filial física no topo da página.");
   }
 
   const dataAtual = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -64,10 +61,6 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
   return { id: uuidGerado, ps: psGerado };
 };
 
-// =========================================================
-// 🚀 SERVIÇOS ESPECÍFICOS POR TIPO DE SOLICITAÇÃO
-// =========================================================
-
 const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', filial = '') => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -90,7 +83,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   }
 
   if (busca) {
-    // ✨ CORREÇÃO 1: A pesquisa agora inclui a coluna "ps", permitindo encontrar o histórico!
     query = query.or(`ps.ilike.%${busca}%,nome_solicitante.ilike.%${busca}%,wbs_destino.ilike.%${busca}%,wbs_origem.ilike.%${busca}%`);
   }
 
@@ -114,7 +106,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
 
     return {
       id: sol.id,
-      ps: sol.ps, // ✨ CORREÇÃO 2: Garantimos que o 'ps' real é devolvido ao frontend
+      ps: sol.ps,
       tipo: sol.tipo,
       nfCrossdocking: sol.notas_fiscais && sol.notas_fiscais.length > 0 ? sol.notas_fiscais[0].numero_nf : (sol.notas_fiscais?.numero_nf || null),
       solicitante: sol.nome_solicitante || 'Não informado',
@@ -133,10 +125,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
     };
   });
 
-  return {
-    dados: dadosFormatados,
-    total: count || 0
-  };
+  return { dados: dadosFormatados, total: count || 0 };
 };
 
 const criarMaterial = async (solicitante, itens, anexos) => {
@@ -345,7 +334,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   let numeroPLGerado = null; 
 
   if (foiAprovado) {
-
     const { data: dadosPL, error: erroPL } = await supabase
       .from('packing_lists')
       .insert([{
@@ -359,7 +347,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
     if (dadosPL && dadosPL.numero_pl) {
       numeroPLGerado = dadosPL.numero_pl; 
-
       await supabase
         .from('solicitacoes')
         .update({ pl: `PL #${numeroPLGerado}` })
@@ -377,7 +364,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
       if (itensPedidos && itensPedidos.length > 0) {
         for (const item of itensPedidos) {
           if (item.estoque_id) {
-
             const { data: estoqueAtual } = await supabase
               .from('estoque')
               .select('*')
@@ -423,9 +409,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           }
         }
       }
-    }
-
-    else if (solicitacao.tipo === 'Entrada') {
+    } else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
         .select('*')
@@ -527,33 +511,6 @@ const reverterItemParaEstoque = async (idItem) => {
   return true;
 };
 
-const buscarHistoricoItem = async (estoqueId) => {
-  const { data, error } = await supabase
-    .from('solicitacoes_itens')
-    .select(`
-      quantidade_solicitada,
-      created_at,
-      solicitacoes (
-        id,
-        nome_solicitante,
-        status,
-        wbs_destino
-      )
-    `)
-    .eq('estoque_id', estoqueId);
-
-  if (error) throw error;
-
-  return data.map(item => ({
-    quantidade: item.quantidade_solicitada,
-    dataSaida: new Date(item.created_at).toLocaleDateString('pt-BR'),
-    solicitacao: item.solicitacoes?.id,
-    solicitante: item.solicitacoes?.nome_solicitante,
-    status: item.solicitacoes?.status,
-    wbs: item.solicitacoes?.wbs_destino
-  }));
-};
-
 const atualizarLocalizacao = async (id, dadosLocal) => {
   if (dadosLocal.filial) {
     const { error: erroSol } = await supabase
@@ -629,7 +586,8 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
   return true;
 };
 
-const listarDemandasPorMaterial = async (partNumber) => {
+// ✨ FUNÇÃO ATUALIZADA: Puxa pelo estoque_id
+const listarDemandasPorEstoque = async (estoqueId) => {
   const { data, error } = await supabase
     .from('solicitacoes_itens')
     .select(`
@@ -638,7 +596,7 @@ const listarDemandasPorMaterial = async (partNumber) => {
         ps, pl, nome_solicitante, wbs_destino, status, created_at, data_necessidade
       )
     `) 
-    .eq('part_number_manual', partNumber);
+    .eq('estoque_id', estoqueId);
 
   if (error) throw error;
   return data;
@@ -649,6 +607,7 @@ module.exports = {
   criarMaterial,
   criarTransferencia,
   criarEntrada,
+  atualizarLocalizacao,
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,
@@ -657,8 +616,7 @@ module.exports = {
   deletarAnexo,
   reverterItemParaEstoque,
   buscarHistoricoItem,
-  atualizarLocalizacao,
   salvarAnexosExtras,
   atualizarItensDaSolicitacao,
-  listarDemandasPorMaterial
+  listarDemandasPorEstoque
 };

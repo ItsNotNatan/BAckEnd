@@ -1,22 +1,19 @@
-// src/controllers/solicitacoesController.js
+// =================================================================
+// ARQUIVO: src/controllers/solicitacoesController.js
+// DESCRIÇÃO: Controlador que processa os pedidos HTTP das solicitações
+// =================================================================
 const service = require('../services/solicitacoesService');
 
-// Lista as solicitações vindas do banco de forma paginada e filtrada
 const listar = async (req, res) => {
   try {
-    // Captura os parâmetros da URL
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10; 
     const busca = req.query.busca || '';
     const tipo = req.query.tipo || '';
-    
-    // 👇 AQUI: Capturamos a filial que o Front-end está a enviar
     const filial = req.query.filial || '';
 
-    // Invoca o serviço repassando a paginação, filtros e a filial
     const { dados, total } = await service.listarSolicitacoes(page, limit, busca, tipo, filial);
     
-    // Retorna a estrutura exata esperada pelo componente React
     res.status(200).json({ sucesso: true, dados, total });
   } catch (error) {
     console.error('[Erro ao listar solicitações]:', error);
@@ -24,7 +21,6 @@ const listar = async (req, res) => {
   }
 };
 
-// Função auxiliar para padronizar as respostas de criação
 const criarResposta = (res, promessaID) => {
   promessaID
     .then(resultado => {
@@ -38,7 +34,6 @@ const criarResposta = (res, promessaID) => {
     });
 };
 
-// Handlers para criação de cada tipo de solicitação
 const criarMaterial = (req, res) => {
   console.log("\n==================================================");
   console.log("📡 [NODE.JS] CHEGOU UM PEDIDO DE MATERIAL!");
@@ -49,22 +44,19 @@ const criarMaterial = (req, res) => {
 
   criarResposta(res, service.criarMaterial(req.body.solicitante, req.body.itens, req.body.anexos));
 };
+
 const criarTransferencia = (req, res) => criarResposta(res, service.criarTransferencia(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarEntrada = (req, res) => criarResposta(res, service.criarEntrada(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarCrossdocking = (req, res) => criarResposta(res, service.criarCrossdocking(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarNotaFiscal = (req, res) => criarResposta(res, service.criarNotaFiscal(req.body.solicitante, req.body.anexos));
 const criarReintegracao = (req, res) => criarResposta(res, service.criarReintegracao(req.body.solicitante, req.body.anexos));
-
-// 🔄 ATUALIZADO: De cancelarBS para cancelarPL
 const cancelarPL = (req, res) => criarResposta(res, service.cancelarPL(req.body.solicitante, req.body.anexos));
 
 const atualizarStatus = async (req, res) => {
   const { id } = req.params;
-  // 🔄 ATUALIZADO: Extraindo 'pl' em vez de 'bs'
   const { status, motivo_recusa, pl } = req.body; 
 
   try {
-    // 🔄 ATUALIZADO: Passando 'pl' para o service
     await service.atualizarStatus(id, status, motivo_recusa, pl); 
     res.status(200).json({ sucesso: true, mensagem: `Status updated para ${status}` });
   } catch (error) {
@@ -122,55 +114,44 @@ const atualizarLocalizacao = async (req, res) => {
   }
 };
 
-// Recebe a requisição de atualização dos itens (Edição Inline)
 const atualizarItens = async (req, res) => {
   const { id } = req.params;
   const { itens } = req.body;
 
   try {
-    // Validação: garante que o frontend enviou um Array (lista)
     if (!itens || !Array.isArray(itens)) {
-      return res.status(400).json({ 
-        sucesso: false, 
-        erro: 'O formato dos itens é inválido. Esperava-se uma lista de itens.' 
-      });
+      return res.status(400).json({ sucesso: false, erro: 'Formato inválido.' });
     }
 
-    // Chama o Service para fazer a magia no banco de dados
     await service.atualizarItensDaSolicitacao(id, itens);
-    
-    console.log(`✅ [SUCESSO] Itens da Solicitação ${id} atualizados com sucesso!`);
     res.status(200).json({ sucesso: true, mensagem: 'Itens atualizados com sucesso.' });
-    
   } catch (error) {
     console.error(`[Erro ao atualizar itens da PS ${id}]:`, error);
     res.status(500).json({ sucesso: false, erro: 'Falha ao gravar os itens na base de dados.' });
   }
 };
 
-const listarDemandasPorMaterial = async (req, res) => {
-  const { partNumber } = req.params;
+// ✨ FUNÇÃO ATUALIZADA: Recebe o estoqueId da URL
+const listarDemandasPorEstoque = async (req, res) => {
+  const { estoqueId } = req.params;
 
   try {
-    const dados = await service.listarDemandasPorMaterial(partNumber);
+    const dados = await service.listarDemandasPorEstoque(estoqueId);
 
-    // Formatamos os dados exatamente como a tua <TabelaDemandas /> gosta!
     const dadosFormatados = dados.map(item => ({
       id: item.solicitacoes.ps,
       solicitante: item.solicitacoes.nome_solicitante,
       wbs: item.solicitacoes.wbs_destino || '-',
       status: item.solicitacoes.status,
-      // 🔄 ATUALIZADO: De 'bs' para 'pl'
       pl: item.solicitacoes.pl || '-',
       criacaoPl: new Date(item.solicitacoes.created_at).toLocaleDateString('pt-BR'),
       dataEntrega: item.solicitacoes.data_necessidade ? new Date(item.solicitacoes.data_necessidade).toLocaleDateString('pt-BR') : 'não definido',
-      // Aproveitamos a coluna de contagem para mostrar quantas peças saíram!
       contagem: `${item.quantidade_solicitada} unid.` 
     }));
 
     res.status(200).json({ sucesso: true, dados: dadosFormatados });
   } catch (error) {
-    console.error(`[Erro ao buscar demandas do PN ${partNumber}]:`, error);
+    console.error(`[Erro ao buscar demandas do estoque ${estoqueId}]:`, error);
     res.status(500).json({ sucesso: false, erro: 'Falha ao buscar demandas.' });
   }
 };
@@ -184,11 +165,11 @@ module.exports = {
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,
-  cancelarPL, // 🔄 ATUALIZADO: De cancelarBS para cancelarPL
+  cancelarPL,
   atualizarStatus,
   removerAnexo,
   reverterItem,
   adicionarAnexosExtras,
   atualizarItens,
-  listarDemandasPorMaterial
+  listarDemandasPorEstoque
 };
