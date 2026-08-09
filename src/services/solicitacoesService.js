@@ -1,6 +1,6 @@
 // =================================================================
 // ARQUIVO: src/services/solicitacoesService.js
-// DESCRIÇÃO: Lógica de negócio e comunicação com o Supabase
+// DESCRIÇÃO: Lógica de negócio e comunicação com o Supabase (Geração de PL para Entrada corrigida)
 // =================================================================
 const supabase = require('../config/supabase');
 
@@ -15,7 +15,7 @@ const limparIdEstoque = (id) => {
 // --- 🛠️ FUNÇÃO AUXILIAR: Salva no Banco ---
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
 
-  // 🛡️ NOVA TRAVA DE SEGURANÇA PARA A FILIAL "TODOS"
+  // 🛡️ TRAVA DE SEGURANÇA PARA A FILIAL "TODOS"
   if (!dadosPrincipais.filial_origem_id || dadosPrincipais.filial_origem_id === 'TODOS') {
     throw new Error("Ação bloqueada: Por favor, selecione uma filial física (BR02, BR04, BR06) no topo da página antes de enviar a solicitação.");
   }
@@ -26,7 +26,6 @@ const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], nume
 
   console.log(`💾 Iniciando gravação da solicitação: ${psGerado}`);
 
-  console.log("-> 1/4: Tentando gravar na tabela 'solicitacoes'...");
   const { data: psData, error: erroPS } = await supabase.from('solicitacoes').insert([{
     ps: psGerado,
     ...dadosPrincipais
@@ -74,7 +73,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // 🔄 ATUALIZADO: Buscar 'pl' e relacionar com 'packing_lists' (substitui 'boletins_saida')
   let query = supabase
     .from('solicitacoes')
     .select(`
@@ -103,7 +101,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   if (error) throw error;
 
   const dadosFormatados = data.map(sol => {
-    let numeroPL = null; // 🔄 ATUALIZADO
+    let numeroPL = null; 
     if (sol.packing_lists) {
       if (Array.isArray(sol.packing_lists) && sol.packing_lists.length > 0) {
         numeroPL = sol.packing_lists[0].numero_pl;
@@ -112,13 +110,15 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
       }
     }
 
+    const plFinal = sol.pl || (numeroPL ? `PL #${numeroPL}` : null);
+
     return {
       id: sol.id,
       tipo: sol.tipo,
       nfCrossdocking: sol.notas_fiscais && sol.notas_fiscais.length > 0 ? sol.notas_fiscais[0].numero_nf : (sol.notas_fiscais?.numero_nf || null),
       solicitante: sol.nome_solicitante || 'Não informado',
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
-      pl: numeroPL ? `PL #${numeroPL}` : null, // 🔄 ATUALIZADO
+      pl: plFinal,
       filial: sol.filial_origem_id || '-',
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       dataCriacaoISO: sol.created_at,
@@ -217,6 +217,7 @@ const criarEntrada = async (solicitante, itens, anexos) => {
       unidade_medida_manual: i.unidadeMedida || 'Unid',
       valor_unitario_manual: precoLimpo,
       fornecedor: i.fornecedor || null,
+      referencia: i.referencia || null,
       nf_entrada: i.nfEntrada || null,
       wbs_element: i.wbsElement || null,
       emissao_nf: i.emissaoNF || null,
@@ -283,7 +284,6 @@ const criarReintegracao = async (solicitante, anexos) => {
     tipo: 'Reintegracao',
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
-    // 🔄 ATUALIZADO: De BS para PL nas observações
     observacoes: `[Reintegração] Originado da PL #${solicitante.pl_origem}`,
     status: 'Pendente',
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
@@ -291,7 +291,6 @@ const criarReintegracao = async (solicitante, anexos) => {
   return await salvarNoBanco(dados, [], anexos);
 };
 
-// 🔄 ATUALIZADO: De cancelarBS para cancelarPL
 const cancelarPL = async (solicitante, anexos) => {
   const dados = {
     tipo: 'Crossdocking',
@@ -307,7 +306,6 @@ const cancelarPL = async (solicitante, anexos) => {
 // =========================================================
 // 🔄 ATUALIZAÇÃO DE STATUS E MATEMÁTICA DE ESTOQUE
 // =========================================================
-// 🔄 ATUALIZADO: parâmetro numeroBS para numeroPL
 const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
@@ -328,7 +326,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
-  // 🔄 ATUALIZADO: Gravando 'pl' em vez de 'bs'
   if (numeroPL) {
     atualizacaoPS.pl = numeroPL;
   }
@@ -347,26 +344,31 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
 
-  let numeroPLGerado = null; // 🔄 ATUALIZADO
+  let numeroPLGerado = null; 
 
   if (foiAprovado) {
 
-    if (solicitacao.tipo !== 'Entrada') {
-      // 🔄 ATUALIZADO: Usando a nova tabela 'packing_lists' em vez de 'boletins_saida'
-      const { data: dadosPL, error: erroPL } = await supabase
-        .from('packing_lists')
-        .insert([{
-          solicitacao_id: id,
-          status: statusFinal === 'Concluído' ? 'Concluído' : 'Em Separação'
-        }])
-        .select('numero_pl') // 🔄 ATUALIZADO
-        .single();
+    // ✨ CORREÇÃO: Removemos o "if (solicitacao.tipo !== 'Entrada')". 
+    // Agora o registo é criado em 'packing_lists' para TODOS os tipos aprovados.
+    const { data: dadosPL, error: erroPL } = await supabase
+      .from('packing_lists')
+      .insert([{
+        solicitacao_id: id,
+        status: statusFinal === 'Concluído' ? 'Concluído' : 'Em Separação'
+      }])
+      .select('numero_pl') 
+      .single();
 
-      if (erroPL && erroPL.code !== '23505') throw erroPL;
+    if (erroPL && erroPL.code !== '23505') throw erroPL;
 
-      if (dadosPL) {
-        numeroPLGerado = dadosPL.numero_pl; // 🔄 ATUALIZADO
-      }
+    if (dadosPL && dadosPL.numero_pl) {
+      numeroPLGerado = dadosPL.numero_pl; 
+
+      // ✨ GRAVAÇÃO CRÍTICA: Atualiza a coluna 'pl' na tabela 'solicitacoes'
+      await supabase
+        .from('solicitacoes')
+        .update({ pl: `PL #${numeroPLGerado}` })
+        .eq('id', id);
     }
 
     const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
@@ -405,8 +407,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                 .eq('id', item.estoque_id);
 
               if (solicitacao.tipo === 'Transferencia WBS') {
-                console.log(`🔄 [TRANSFERÊNCIA] Criando nova entrada para o WBS: ${solicitacao.wbs_destino}`);
-
                 const itemParaNovoWBS = {
                   material_id: estoqueAtual.material_id,
                   filial_id: estoqueAtual.filial_id,
@@ -422,15 +422,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`
                 };
 
-                const { error: erroTransf } = await supabase
-                  .from('estoque')
-                  .insert([itemParaNovoWBS]);
-
-                if (erroTransf) {
-                  console.error("❌ Erro ao criar item transferido no estoque:", erroTransf);
-                } else {
-                  console.log("✅ [TRANSFERÊNCIA] Material alocado no novo projeto com sucesso!");
-                }
+                await supabase.from('estoque').insert([itemParaNovoWBS]);
               }
             }
           }
@@ -439,21 +431,14 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
     }
 
     else if (solicitacao.tipo === 'Entrada') {
-      console.log("🛠️ [BACKEND - ETAPA 1] Solicitação é do tipo Entrada. A procurar itens da solicitação...");
-
-      const { data: itensEntrada, error: erroBuscaItens } = await supabase
+      const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
         .select('*')
         .eq('solicitacao_id', id);
 
-      if (erroBuscaItens) {
-        console.error("❌ [BACKEND - ERRO] Falha ao procurar itens da solicitação:", erroBuscaItens);
-      }
-
       if (itensEntrada && itensEntrada.length > 0) {
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
-          // ✨ CORREÇÃO: Adicionada a linha abaixo para transportar o Desenho SAP para o Estoque!
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
           part_number: item.part_number_manual || 'SEM-PN',
           descricao: item.descricao_manual || 'Sem descrição',
@@ -466,22 +451,11 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           status: 'Disponível'
         }));
 
-        const { error: erroEstoque } = await supabase
-          .from('estoque')
-          .insert(novoEstoqueLotes);
-
-        if (erroEstoque) {
-          console.error("❌ [BACKEND - ERRO FATAL] Erro ao gravar dados na tabela 'estoque':", erroEstoque);
-        } else {
-          console.log("✅ [BACKEND - SUCESSO] Material inserido no Estoque Físico com sucesso!");
-        }
-      } else {
-        console.log("⚠️ [BACKEND - AVISO] A solicitação não tinha nenhum item atrelado a ela.");
+        await supabase.from('estoque').insert(novoEstoqueLotes);
       }
     }
   }
 
-  // 🔄 ATUALIZADO: Retornar numeroPL em vez de numeroBS
   return { sucesso: true, numeroPL: numeroPLGerado };
 };
 
@@ -611,9 +585,6 @@ const atualizarLocalizacao = async (id, dadosLocal) => {
   return true;
 };
 
-// =========================================================
-// ✏️ ATUALIZAÇÃO DE ITENS (EDIÇÃO INLINE NA LOGÍSTICA)
-// =========================================================
 const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
   const { error: erroDelete } = await supabase
     .from('solicitacoes_itens')
@@ -663,9 +634,6 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
   return true;
 };
 
-// =========================================================
-// 🔍 BUSCAR DEMANDAS POR MATERIAL (INNER JOIN)
-// =========================================================
 const listarDemandasPorMaterial = async (partNumber) => {
   const { data, error } = await supabase
     .from('solicitacoes_itens')
@@ -674,7 +642,7 @@ const listarDemandasPorMaterial = async (partNumber) => {
       solicitacoes!inner (
         ps, pl, nome_solicitante, wbs_destino, status, created_at, data_necessidade
       )
-    `) // 🔄 ATUALIZADO: De 'bs' para 'pl'
+    `) 
     .eq('part_number_manual', partNumber);
 
   if (error) throw error;
@@ -689,7 +657,7 @@ module.exports = {
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,
-  cancelarPL, // 🔄 ATUALIZADO
+  cancelarPL, 
   atualizarStatus,
   deletarAnexo,
   reverterItemParaEstoque,
