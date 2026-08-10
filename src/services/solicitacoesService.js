@@ -65,11 +65,12 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
+  // ✨ ATUALIZAÇÃO 1: Pedimos ao banco para trazer a nova coluna prazo_finalizacao_pl
   let query = supabase
     .from('solicitacoes')
     .select(`
       id, ps, pl, tipo, nome_solicitante, wbs_destino, wbs_origem, filial_origem_id, observacoes, 
-      data_necessidade, entrega_urgente, status, created_at, updated_at, data_aprovacao_pl,
+      data_necessidade, entrega_urgente, status, created_at, updated_at, data_aprovacao_pl, prazo_finalizacao_pl,
       packing_lists (numero_pl), notas_fiscais (numero_nf), 
       anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
     `, { count: 'exact' });
@@ -104,7 +105,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
 
     const plFinal = sol.pl || (numeroPL ? `PL #${numeroPL}` : null);
 
-    // Data de aprovação da PL ou fallback para updated_at se já aprovado
     const dataAprovacaoValida = sol.data_aprovacao_pl || (sol.status !== 'Pendente' ? sol.updated_at : null);
 
     return {
@@ -119,8 +119,11 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       dataCriacaoISO: sol.created_at,
       
-      // Enviado para o cálculo do Target no Dashboard
       dataAprovacaoPL: dataAprovacaoValida,
+      
+      // ✨ ATUALIZAÇÃO 2: Enviamos a data calculada (prazo) para o front-end
+      prazoFinalizacao: sol.prazo_finalizacao_pl,
+
       criacaoPl: dataAprovacaoValida 
         ? new Date(dataAprovacaoValida).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(dataAprovacaoValida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         : null,
@@ -323,10 +326,18 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
-  // Grava a data da aprovação da PL se ainda não tiver sido gravada
+  // ✨ ATUALIZAÇÃO 3: CÁLCULO DA DATA DE APROVAÇÃO E PRAZO (TARGET 3 DIAS)
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
   if (foiAprovado && !solicitacao.data_aprovacao_pl) {
-    atualizacaoPS.data_aprovacao_pl = new Date();
+    const dataAprovacao = new Date();
+    atualizacaoPS.data_aprovacao_pl = dataAprovacao;
+    
+    // Calcula o prazo: Soma 3 dias corridos à data de hoje
+    const prazoLimite = new Date(dataAprovacao);
+    prazoLimite.setDate(prazoLimite.getDate() + 3);
+    
+    // Guarda na nova coluna da base de dados
+    atualizacaoPS.prazo_finalizacao_pl = prazoLimite;
   }
 
   if (numeroPL) {
