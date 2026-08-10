@@ -9,7 +9,7 @@ const limparIdEstoque = (id) => {
   const idString = String(id);
   if (idString.startsWith('manual-')) return null;
   return idString;
-}
+};
 
 const salvarNoBanco = async (dadosPrincipais, itensArray, anexosArray = [], numeroDaNota = null) => {
   if (!dadosPrincipais.filial_origem_id || dadosPrincipais.filial_origem_id === 'TODOS') {
@@ -69,7 +69,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
     .from('solicitacoes')
     .select(`
       id, ps, pl, tipo, nome_solicitante, wbs_destino, wbs_origem, filial_origem_id, observacoes, 
-      data_necessidade, entrega_urgente, status, created_at, updated_at, 
+      data_necessidade, entrega_urgente, status, created_at, updated_at, data_aprovacao_pl,
       packing_lists (numero_pl), notas_fiscais (numero_nf), 
       anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
     `, { count: 'exact' });
@@ -104,6 +104,9 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
 
     const plFinal = sol.pl || (numeroPL ? `PL #${numeroPL}` : null);
 
+    // Data de aprovação da PL ou fallback para updated_at se já aprovado
+    const dataAprovacaoValida = sol.data_aprovacao_pl || (sol.status !== 'Pendente' ? sol.updated_at : null);
+
     return {
       id: sol.id,
       ps: sol.ps,
@@ -113,8 +116,15 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
       wbs: sol.tipo === 'Transferencia WBS' ? `${sol.wbs_origem} ➔ ${sol.wbs_destino}` : sol.wbs_destino || '—',
       pl: plFinal,
       filial: sol.filial_origem_id || '-',
-      dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       dataCriacaoISO: sol.created_at,
+      
+      // Enviado para o cálculo do Target no Dashboard
+      dataAprovacaoPL: dataAprovacaoValida,
+      criacaoPl: dataAprovacaoValida 
+        ? new Date(dataAprovacaoValida).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(dataAprovacaoValida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : null,
+      
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
       dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
       status: sol.status,
@@ -296,7 +306,7 @@ const cancelarPL = async (solicitante, anexos) => {
 const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
-    .select('tipo, filial_origem_id, observacoes')
+    .select('tipo, filial_origem_id, observacoes, data_aprovacao_pl')
     .eq('id', id)
     .single();
 
@@ -313,6 +323,12 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
+  // Grava a data da aprovação da PL se ainda não tiver sido gravada
+  const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
+  if (foiAprovado && !solicitacao.data_aprovacao_pl) {
+    atualizacaoPS.data_aprovacao_pl = new Date();
+  }
+
   if (numeroPL) {
     atualizacaoPS.pl = numeroPL;
   }
@@ -328,8 +344,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
     .eq('id', id);
 
   if (erroPS) throw erroPS;
-
-  const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
 
   let numeroPLGerado = null; 
 
@@ -613,7 +627,6 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
   return true;
 };
 
-// ✨ FUNÇÃO ATUALIZADA: Puxa pelo estoque_id
 const listarDemandasPorEstoque = async (estoqueId) => {
   const { data, error } = await supabase
     .from('solicitacoes_itens')
