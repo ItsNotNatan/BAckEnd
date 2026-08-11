@@ -332,6 +332,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let statusFinal = statusRecebido;
 
+  // Entradas e Transferências WBS concluem imediatamente após aprovação
   if (solicitacao.tipo === 'Entrada' && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado' || statusRecebido === 'Concluído')) {
     statusFinal = 'Concluído';
   }
@@ -341,7 +342,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
-  // ✨ ATUALIZAÇÃO 3: CÁLCULO DA DATA DE APROVAÇÃO E PRAZO (TARGET 3 DIAS)
+  // ✨ CÁLCULO DA DATA DE APROVAÇÃO E PRAZO (TARGET 3 DIAS)
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
   if (foiAprovado && !solicitacao.data_aprovacao_pl) {
     const dataAprovacao = new Date();
@@ -395,6 +396,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
     const tiposDeSaida = ['Material', 'Transferencia WBS', 'Crossdocking'];
 
+    // 1. LÓGICA DE SUBTRAÇÃO (SAÍDAS)
     if (tiposDeSaida.includes(solicitacao.tipo)) {
       const { data: itensPedidos } = await supabase
         .from('solicitacoes_itens')
@@ -449,7 +451,9 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           }
         }
       }
-    } else if (solicitacao.tipo === 'Entrada') {
+    } 
+    // 2. LÓGICA DE CRIAÇÃO (ENTRADAS)
+    else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
         .select('*')
@@ -471,6 +475,40 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }));
 
         await supabase.from('estoque').insert(novoEstoqueLotes);
+      }
+    }
+    // ✨ 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
+    else if (solicitacao.tipo === 'Reintegracao' || solicitacao.tipo === 'Reintegração' || solicitacao.tipo === 'Cancelado') {
+      const { data: itensReintegracao } = await supabase
+        .from('solicitacoes_itens')
+        .select('estoque_id, quantidade_solicitada')
+        .eq('solicitacao_id', id);
+
+      if (itensReintegracao && itensReintegracao.length > 0) {
+        for (const item of itensReintegracao) {
+          if (item.estoque_id) {
+            const { data: estoqueAtual } = await supabase
+              .from('estoque')
+              .select('quantidade_disponivel')
+              .eq('id', item.estoque_id)
+              .single();
+
+            if (estoqueAtual) {
+              const saldoAtual = Number(estoqueAtual.quantidade_disponivel || 0);
+              const quantidadeDevolvida = Number(item.quantidade_solicitada || 0);
+              const novoSaldo = saldoAtual + quantidadeDevolvida;
+
+              await supabase
+                .from('estoque')
+                .update({
+                  quantidade_disponivel: novoSaldo,
+                  status: 'Disponível', // Se o item estava 'Zerado', volta a ficar visível
+                  updated_at: new Date()
+                })
+                .eq('id', item.estoque_id);
+            }
+          }
+        }
       }
     }
   }
