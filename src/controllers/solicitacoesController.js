@@ -49,7 +49,7 @@ const criarTransferencia = (req, res) => criarResposta(res, service.criarTransfe
 const criarEntrada = (req, res) => criarResposta(res, service.criarEntrada(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarCrossdocking = (req, res) => criarResposta(res, service.criarCrossdocking(req.body.solicitante, req.body.itens, req.body.anexos));
 const criarNotaFiscal = (req, res) => criarResposta(res, service.criarNotaFiscal(req.body.solicitante, req.body.anexos));
-const criarReintegracao = (req, res) => criarResposta(res, service.criarReintegracao(req.body.solicitante, req.body.anexos));
+const criarReintegracao = (req, res) => criarResposta(res, service.criarReintegracao(req.body.solicitante, req.body.itens, req.body.anexos));
 const cancelarPL = (req, res) => criarResposta(res, service.cancelarPL(req.body.solicitante, req.body.anexos));
 
 const atualizarStatus = async (req, res) => {

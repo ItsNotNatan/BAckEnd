@@ -282,16 +282,31 @@ const criarNotaFiscal = async (solicitante, anexos) => {
   return await salvarNoBanco(dados, itensDB, anexos);
 };
 
-const criarReintegracao = async (solicitante, anexos) => {
+const criarReintegracao = async (solicitante, itens, anexos) => {
   const dados = {
     tipo: 'Reintegracao',
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
-    observacoes: `[Reintegração] Originado da PL #${solicitante.pl_origem}`,
+    // Mescla a tag de reintegração com alguma possível observação que o cliente escreva
+    observacoes: `[Reintegração] Originado da PL #${solicitante.pl_origem}. ${solicitante.observacoes || ''}`.trim(),
     status: 'Pendente',
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
-  return await salvarNoBanco(dados, [], anexos);
+
+  // Mapeamos os itens selecionados para devolução, preservando o ID do estoque
+  const itensDB = (itens || []).map(i => ({
+    estoque_id: limparIdEstoque(i.estoque_id || i.id),
+    desenho_sap_manual: i.desenho_sap_manual || i.desenhoSAP || '-',
+    part_number_manual: i.part_number_manual || i.part_number || '-',
+    descricao_manual: i.descricao_manual || i.descricao || 'Sem descrição',
+    // Pega a quantidade que o cliente escolheu devolver
+    quantidade_solicitada: Math.max(1, Number(i.quantidade_devolvida || i.quantidade_solicitada || 1)),
+    unidade_medida_manual: i.unidade_medida_manual || i.unidade || 'Unid',
+    wbs_element: i.wbs_element || null,
+    alocacao: i.alocacao || null
+  }));
+
+  return await salvarNoBanco(dados, itensDB, anexos);
 };
 
 const cancelarPL = async (solicitante, anexos) => {
