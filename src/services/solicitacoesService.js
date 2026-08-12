@@ -332,7 +332,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let statusFinal = statusRecebido;
 
-  // ✨ Se for Entrada, WBS ou Cancelamento, conclui logo a seguir à aprovação!
   if (['Entrada', 'Transferencia WBS', 'Cancelado'].includes(solicitacao.tipo) && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado' || statusRecebido === 'Concluído')) {
     statusFinal = 'Concluído';
   }
@@ -479,39 +478,10 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
     }
     // 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
     else if (solicitacao.tipo === 'Reintegracao' || solicitacao.tipo === 'Reintegração' || solicitacao.tipo === 'Cancelado') {
-      const { data: itensReintegracao } = await supabase
-        .from('solicitacoes_itens')
-        .select('estoque_id, quantidade_solicitada')
-        .eq('solicitacao_id', id);
+      
+      let deveDevolverAoEstoque = true;
 
-      if (itensReintegracao && itensReintegracao.length > 0) {
-        for (const item of itensReintegracao) {
-          if (item.estoque_id) {
-            const { data: estoqueAtual } = await supabase
-              .from('estoque')
-              .select('quantidade_disponivel')
-              .eq('id', item.estoque_id)
-              .single();
-
-            if (estoqueAtual) {
-              const saldoAtual = Number(estoqueAtual.quantidade_disponivel || 0);
-              const quantidadeDevolvida = Number(item.quantidade_solicitada || 0);
-              const novoSaldo = saldoAtual + quantidadeDevolvida;
-
-              await supabase
-                .from('estoque')
-                .update({
-                  quantidade_disponivel: novoSaldo,
-                  status: 'Disponível', 
-                  updated_at: new Date()
-                })
-                .eq('id', item.estoque_id);
-            }
-          }
-        }
-      }
-
-      // ✨ MÁGICA FINAL: CANCELAR A SOLICITAÇÃO ORIGINAL NA BASE DE DADOS
+      // ✨ SEGREDO: Verificar se o item já tinha saído do estoque antes de devolver
       if (solicitacao.tipo === 'Cancelado' && solicitacao.observacoes) {
         const regexUUID = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
         const match = solicitacao.observacoes.match(regexUUID);
@@ -519,17 +489,65 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         if (match) {
           const idOriginalParaCancelar = match[0];
           
-          // Altera o status da Original para Cancelado
-          await supabase
+          // Busca a solicitação original para saber o status em que ela estava
+          const { data: solOriginal } = await supabase
             .from('solicitacoes')
-            .update({ status: 'Cancelado', updated_at: new Date() })
-            .eq('id', idOriginalParaCancelar);
+            .select('status')
+            .eq('id', idOriginalParaCancelar)
+            .single();
 
-          // Altera a PL original para Cancelado
-          await supabase
-            .from('packing_lists')
-            .update({ status: 'Cancelado' })
-            .eq('solicitacao_id', idOriginalParaCancelar);
+          if (solOriginal) {
+            // Se a original estava "Pendente", o estoque NUNCA foi subtraído! Logo, não podemos devolver.
+            if (solOriginal.status === 'Pendente') {
+              deveDevolverAoEstoque = false;
+            }
+
+            // Altera o status da Original para Cancelado
+            await supabase
+              .from('solicitacoes')
+              .update({ status: 'Cancelado', updated_at: new Date() })
+              .eq('id', idOriginalParaCancelar);
+
+            // Altera a PL original para Cancelada (se existir)
+            await supabase
+              .from('packing_lists')
+              .update({ status: 'Cancelado' })
+              .eq('solicitacao_id', idOriginalParaCancelar);
+          }
+        }
+      }
+
+      if (deveDevolverAoEstoque) {
+        const { data: itensReintegracao } = await supabase
+          .from('solicitacoes_itens')
+          .select('estoque_id, quantidade_solicitada')
+          .eq('solicitacao_id', id);
+
+        if (itensReintegracao && itensReintegracao.length > 0) {
+          for (const item of itensReintegracao) {
+            if (item.estoque_id) {
+              const { data: estoqueAtual } = await supabase
+                .from('estoque')
+                .select('quantidade_disponivel')
+                .eq('id', item.estoque_id)
+                .single();
+
+              if (estoqueAtual) {
+                const saldoAtual = Number(estoqueAtual.quantidade_disponivel || 0);
+                const quantidadeDevolvida = Number(item.quantidade_solicitada || 0);
+                const novoSaldo = saldoAtual + quantidadeDevolvida;
+
+                await supabase
+                  .from('estoque')
+                  .update({
+                    quantidade_disponivel: novoSaldo,
+                    status: 'Disponível', 
+                    updated_at: new Date()
+                  })
+                  .eq('id', item.estoque_id);
+              }
+            }
+          }
         }
       }
     }
