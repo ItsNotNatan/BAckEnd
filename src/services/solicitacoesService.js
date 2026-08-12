@@ -301,15 +301,14 @@ const criarReintegracao = async (solicitante, itens, anexos) => {
 
 const cancelarPL = async (solicitante, anexos) => {
   const dados = {
-    tipo: 'Cancelado', // Ajustado para ser claro que é um Cancelamento
+    tipo: 'Cancelado', 
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Pendente', // Inicia Pendente para a logística aprovar a devolução do cancelamento
+    status: 'Pendente', 
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
   
-  // Pegamos os itens reais da PL que o utilizador enviou no body
   const itensDB = (solicitante.itens || []).map(i => ({
     estoque_id: limparIdEstoque(i.estoque_id || i.id),
     desenho_sap_manual: i.desenho_sap_manual || i.desenhoSAP || '-',
@@ -322,11 +321,7 @@ const cancelarPL = async (solicitante, anexos) => {
   return await salvarNoBanco(dados, itensDB, anexos);
 };
 
-// =========================================================
-// ✨ ATUALIZAR STATUS: CORRIGIDO BUG DE DUPLA SUBTRAÇÃO/SOMA
-// =========================================================
 const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
-  // ✨ Agora pedimos a coluna 'status' para saber o estado ATUAL antes de mudar
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
     .select('tipo, status, filial_origem_id, observacoes, data_aprovacao_pl')
@@ -337,10 +332,8 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let statusFinal = statusRecebido;
 
-  if (solicitacao.tipo === 'Entrada' && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado' || statusRecebido === 'Concluído')) {
-    statusFinal = 'Concluído';
-  }
-  else if (solicitacao.tipo === 'Transferencia WBS' && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado')) {
+  // ✨ Se for Entrada, WBS ou Cancelamento, conclui logo a seguir à aprovação!
+  if (['Entrada', 'Transferencia WBS', 'Cancelado'].includes(solicitacao.tipo) && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado' || statusRecebido === 'Concluído')) {
     statusFinal = 'Concluído';
   }
 
@@ -375,10 +368,8 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let numeroPLGerado = null; 
 
-  // ✨ TRAVA DE SEGURANÇA: Só movemos o estoque SE e SÓ SE a solicitação estava 'Pendente'
   const acabouDeSerAprovado = solicitacao.status === 'Pendente' && foiAprovado;
 
-  // Se já tiver sido aprovada antes e só estivermos mudando para Concluído, só atualizamos a PL
   if (!acabouDeSerAprovado && statusFinal === 'Concluído') {
      await supabase.from('packing_lists').update({ status: 'Concluído' }).eq('solicitacao_id', id);
   }
@@ -517,6 +508,28 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                 .eq('id', item.estoque_id);
             }
           }
+        }
+      }
+
+      // ✨ MÁGICA FINAL: CANCELAR A SOLICITAÇÃO ORIGINAL NA BASE DE DADOS
+      if (solicitacao.tipo === 'Cancelado' && solicitacao.observacoes) {
+        const regexUUID = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
+        const match = solicitacao.observacoes.match(regexUUID);
+        
+        if (match) {
+          const idOriginalParaCancelar = match[0];
+          
+          // Altera o status da Original para Cancelado
+          await supabase
+            .from('solicitacoes')
+            .update({ status: 'Cancelado', updated_at: new Date() })
+            .eq('id', idOriginalParaCancelar);
+
+          // Altera a PL original para Cancelado
+          await supabase
+            .from('packing_lists')
+            .update({ status: 'Cancelado' })
+            .eq('solicitacao_id', idOriginalParaCancelar);
         }
       }
     }
