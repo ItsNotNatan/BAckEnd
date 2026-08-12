@@ -65,7 +65,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // ✨ ATUALIZAÇÃO 1: Pedimos ao banco para trazer a nova coluna prazo_finalizacao_pl
   let query = supabase
     .from('solicitacoes')
     .select(`
@@ -104,7 +103,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
     }
 
     const plFinal = sol.pl || (numeroPL ? `PL #${numeroPL}` : null);
-
     const dataAprovacaoValida = sol.data_aprovacao_pl || (sol.status !== 'Pendente' ? sol.updated_at : null);
 
     return {
@@ -118,16 +116,11 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
       filial: sol.filial_origem_id || '-',
       dataSolicitacao: new Date(sol.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(sol.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       dataCriacaoISO: sol.created_at,
-      
       dataAprovacaoPL: dataAprovacaoValida,
-      
-      // ✨ ATUALIZAÇÃO 2: Enviamos a data calculada (prazo) para o front-end
       prazoFinalizacao: sol.prazo_finalizacao_pl,
-
       criacaoPl: dataAprovacaoValida 
         ? new Date(dataAprovacaoValida).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(dataAprovacaoValida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         : null,
-      
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
       dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
       status: sol.status,
@@ -287,19 +280,16 @@ const criarReintegracao = async (solicitante, itens, anexos) => {
     tipo: 'Reintegracao',
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
-    // Mescla a tag de reintegração com alguma possível observação que o cliente escreva
     observacoes: `[Reintegração] Originado da PL #${solicitante.pl_origem}. ${solicitante.observacoes || ''}`.trim(),
     status: 'Pendente',
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
-  // Mapeamos os itens selecionados para devolução, preservando o ID do estoque
   const itensDB = (itens || []).map(i => ({
     estoque_id: limparIdEstoque(i.estoque_id || i.id),
     desenho_sap_manual: i.desenho_sap_manual || i.desenhoSAP || '-',
     part_number_manual: i.part_number_manual || i.part_number || '-',
     descricao_manual: i.descricao_manual || i.descricao || 'Sem descrição',
-    // Pega a quantidade que o cliente escolheu devolver
     quantidade_solicitada: Math.max(1, Number(i.quantidade_devolvida || i.quantidade_solicitada || 1)),
     unidade_medida_manual: i.unidade_medida_manual || i.unidade || 'Unid',
     wbs_element: i.wbs_element || null,
@@ -311,20 +301,35 @@ const criarReintegracao = async (solicitante, itens, anexos) => {
 
 const cancelarPL = async (solicitante, anexos) => {
   const dados = {
-    tipo: 'Crossdocking',
+    tipo: 'Cancelado', // Ajustado para ser claro que é um Cancelamento
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Cancelado',
+    status: 'Pendente', // Inicia Pendente para a logística aprovar a devolução do cancelamento
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
-  return await salvarNoBanco(dados, [], anexos);
+  
+  // Pegamos os itens reais da PL que o utilizador enviou no body
+  const itensDB = (solicitante.itens || []).map(i => ({
+    estoque_id: limparIdEstoque(i.estoque_id || i.id),
+    desenho_sap_manual: i.desenho_sap_manual || i.desenhoSAP || '-',
+    part_number_manual: i.part_number_manual || i.part_number || '-',
+    descricao_manual: i.descricao_manual || i.descricao || 'Sem descrição',
+    quantidade_solicitada: Math.max(1, Number(i.quantidade_solicitada || 1)),
+    unidade_medida_manual: i.unidade_medida_manual || i.unidade || 'Unid'
+  }));
+
+  return await salvarNoBanco(dados, itensDB, anexos);
 };
 
+// =========================================================
+// ✨ ATUALIZAR STATUS: CORRIGIDO BUG DE DUPLA SUBTRAÇÃO/SOMA
+// =========================================================
 const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
+  // ✨ Agora pedimos a coluna 'status' para saber o estado ATUAL antes de mudar
   const { data: solicitacao, error: erroBusca } = await supabase
     .from('solicitacoes')
-    .select('tipo, filial_origem_id, observacoes, data_aprovacao_pl')
+    .select('tipo, status, filial_origem_id, observacoes, data_aprovacao_pl')
     .eq('id', id)
     .single();
 
@@ -332,7 +337,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let statusFinal = statusRecebido;
 
-  // Entradas e Transferências WBS concluem imediatamente após aprovação
   if (solicitacao.tipo === 'Entrada' && (statusRecebido === 'Em Separação' || statusRecebido === 'Aprovado' || statusRecebido === 'Concluído')) {
     statusFinal = 'Concluído';
   }
@@ -342,17 +346,14 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
-  // ✨ CÁLCULO DA DATA DE APROVAÇÃO E PRAZO (TARGET 3 DIAS)
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
+  
   if (foiAprovado && !solicitacao.data_aprovacao_pl) {
     const dataAprovacao = new Date();
     atualizacaoPS.data_aprovacao_pl = dataAprovacao;
     
-    // Calcula o prazo: Soma 3 dias corridos à data de hoje
     const prazoLimite = new Date(dataAprovacao);
     prazoLimite.setDate(prazoLimite.getDate() + 3);
-    
-    // Guarda na nova coluna da base de dados
     atualizacaoPS.prazo_finalizacao_pl = prazoLimite;
   }
 
@@ -374,7 +375,15 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   let numeroPLGerado = null; 
 
-  if (foiAprovado) {
+  // ✨ TRAVA DE SEGURANÇA: Só movemos o estoque SE e SÓ SE a solicitação estava 'Pendente'
+  const acabouDeSerAprovado = solicitacao.status === 'Pendente' && foiAprovado;
+
+  // Se já tiver sido aprovada antes e só estivermos mudando para Concluído, só atualizamos a PL
+  if (!acabouDeSerAprovado && statusFinal === 'Concluído') {
+     await supabase.from('packing_lists').update({ status: 'Concluído' }).eq('solicitacao_id', id);
+  }
+
+  if (acabouDeSerAprovado) {
     const { data: dadosPL, error: erroPL } = await supabase
       .from('packing_lists')
       .insert([{
@@ -477,7 +486,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         await supabase.from('estoque').insert(novoEstoqueLotes);
       }
     }
-    // ✨ 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
+    // 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
     else if (solicitacao.tipo === 'Reintegracao' || solicitacao.tipo === 'Reintegração' || solicitacao.tipo === 'Cancelado') {
       const { data: itensReintegracao } = await supabase
         .from('solicitacoes_itens')
@@ -502,7 +511,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                 .from('estoque')
                 .update({
                   quantidade_disponivel: novoSaldo,
-                  status: 'Disponível', // Se o item estava 'Zerado', volta a ficar visível
+                  status: 'Disponível', 
                   updated_at: new Date()
                 })
                 .eq('id', item.estoque_id);
