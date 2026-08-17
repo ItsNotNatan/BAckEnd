@@ -101,7 +101,7 @@ const reverterItem = async (req, res) => {
   }
 };
 
-// ✨ CORRIGIDO: Retornou ao formato de controlador do Express (req, res) e agora recebe a data_entrega
+// ✨ AGORA SIM! O controlador Express correto recebendo (req, res) e extraindo a data_entrega
 const atualizarLocalizacao = async (req, res) => {
   try {
     const { id } = req.params;
