@@ -101,17 +101,43 @@ const reverterItem = async (req, res) => {
   }
 };
 
-const atualizarLocalizacao = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { filial, centro, deposito } = req.body;
-
-    await service.atualizarLocalizacao(id, { filial, centro, deposito });
-    res.json({ sucesso: true, mensagem: 'Localização atualizada com sucesso!' });
-  } catch (error) {
-    console.error("Erro ao atualizar localização:", error);
-    res.status(500).json({ sucesso: false, erro: error.message });
+const atualizarLocalizacao = async (id, dadosLocal) => {
+  // ✨ 1. Atualização na tabela principal 'solicitacoes'
+  const atualizacaoSol = {};
+  
+  if (dadosLocal.filial) {
+    atualizacaoSol.filial_origem_id = dadosLocal.filial;
   }
+  
+  // Se o frontend enviar a data (mesmo que seja para a apagar enviando string vazia), nós guardamos
+  if (dadosLocal.data_necessidade !== undefined) {
+    atualizacaoSol.data_necessidade = dadosLocal.data_necessidade || null;
+  }
+
+  if (Object.keys(atualizacaoSol).length > 0) {
+    const { error: erroSol } = await supabase
+      .from('solicitacoes')
+      .update(atualizacaoSol)
+      .eq('id', id);
+
+    if (erroSol) throw erroSol;
+  }
+
+  // 2. Atualização na tabela secundária 'solicitacoes_itens'
+  if (dadosLocal.centro || dadosLocal.deposito) {
+    const atualizacaoItens = {};
+    if (dadosLocal.centro) atualizacaoItens.centro = dadosLocal.centro;
+    if (dadosLocal.deposito) atualizacaoItens.deposito = dadosLocal.deposito;
+
+    const { error: erroItens } = await supabase
+      .from('solicitacoes_itens')
+      .update(atualizacaoItens)
+      .eq('solicitacao_id', id);
+
+    if (erroItens) throw erroItens;
+  }
+
+  return true;
 };
 
 const atualizarItens = async (req, res) => {
