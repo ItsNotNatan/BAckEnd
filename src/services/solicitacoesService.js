@@ -65,11 +65,12 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
+  // ✨ CORREÇÃO: Adicionámos data_entrega no select para o banco de dados devolver este dado!
   let query = supabase
     .from('solicitacoes')
     .select(`
       id, ps, pl, tipo, nome_solicitante, wbs_destino, wbs_origem, filial_origem_id, observacoes, 
-      data_necessidade, entrega_urgente, status, created_at, updated_at, data_aprovacao_pl, prazo_finalizacao_pl,
+      data_necessidade, data_entrega, entrega_urgente, status, created_at, updated_at, data_aprovacao_pl, prazo_finalizacao_pl,
       packing_lists (numero_pl), notas_fiscais (numero_nf), 
       anexos (id, nome_arquivo, url_arquivo, origem), solicitacoes_itens (*)
     `, { count: 'exact' });
@@ -122,7 +123,12 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
         ? new Date(dataAprovacaoValida).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(dataAprovacaoValida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         : null,
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
-      dataEntrega: sol.status === 'Concluído' ? 'Disponível' : null,
+      
+      // ✨ CORREÇÃO: Puxa a data formatada do banco (se existir), caso contrário cai nas regras padrão
+      dataEntrega: sol.data_entrega 
+        ? new Date(sol.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) 
+        : (sol.status === 'Concluído' ? 'Disponível' : null),
+        
       status: sol.status,
       observacoes: sol.observacoes,
       entregaUrgente: sol.entrega_urgente,
@@ -464,7 +470,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
           part_number: item.part_number_manual || 'SEM-PN',
           descricao: item.descricao_manual || 'Sem descrição',
-          filial_id: solicitacao.filial_origem_id || 'BR06',
+          filial_id: solicitacao.filial_origem_id || null, 
           nf_entrada: item.nf_entrada || 'SEM-NF',
           documento_compras: item.documento_compras || '-',
           wbs: item.wbs_element || '-',
@@ -481,7 +487,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
       
       let deveDevolverAoEstoque = true;
 
-      // ✨ SEGREDO: Verificar se o item já tinha saído do estoque antes de devolver
+      // SEGREDO: Verificar se o item já tinha saído do estoque antes de devolver
       if (solicitacao.tipo === 'Cancelado' && solicitacao.observacoes) {
         const regexUUID = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
         const match = solicitacao.observacoes.match(regexUUID);
@@ -656,11 +662,23 @@ const buscarHistoricoItem = async (estoqueId) => {
   }));
 };
 
+// ✨ CORREÇÃO: Função atualizada para incluir data_entrega no banco de dados
 const atualizarLocalizacao = async (id, dadosLocal) => {
+  const atualizacaoSol = {};
+  
   if (dadosLocal.filial) {
+    atualizacaoSol.filial_origem_id = dadosLocal.filial;
+  }
+  
+  // Se o frontend enviar a data (mesmo que seja para a apagar enviando string vazia), nós guardamos
+  if (dadosLocal.data_entrega !== undefined) {
+    atualizacaoSol.data_entrega = dadosLocal.data_entrega || null;
+  }
+
+  if (Object.keys(atualizacaoSol).length > 0) {
     const { error: erroSol } = await supabase
       .from('solicitacoes')
-      .update({ filial_origem_id: dadosLocal.filial })
+      .update(atualizacaoSol)
       .eq('id', id);
 
     if (erroSol) throw erroSol;
