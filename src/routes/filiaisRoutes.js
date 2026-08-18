@@ -7,7 +7,9 @@ const verificarToken = require('../middlewares/authMiddleware');
 router.get('/listar', ctrl.listar);
 
 // 🔴 ROTAS PROTEGIDAS (Apenas a Logística pode criar ou apagar filiais)
+// ... outras rotas
 router.post('/criar', verificarToken, ctrl.criar);
+router.patch('/:id', verificarToken, ctrl.atualizar); // ✨ NOVA ROTA DE EDIÇÃO
 router.delete('/:id', verificarToken, ctrl.deletar);
 
 module.exports = router;

@@ -29,4 +29,14 @@ const deletarFilial = async (idFilial) => {
   return true;
 };
 
-module.exports = { listarFiliais, criarFilial, deletarFilial };
+const atualizarFilial = async (idFilial, dadosAtualizados) => {
+  const { error } = await supabase
+    .from('filiais')
+    .update(dadosAtualizados)
+    .eq('id', idFilial);
+
+  if (error) throw error;
+  return true;
+};
+
+module.exports = { listarFiliais, criarFilial, deletarFilial, atualizarFilial };

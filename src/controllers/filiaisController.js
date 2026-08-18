@@ -33,4 +33,14 @@ const deletar = async (req, res) => {
   }
 };
 
-module.exports = { listar, criar, deletar };
+const atualizar = async (req, res) => {
+  try {
+    await service.atualizarFilial(req.params.id, req.body);
+    res.status(200).json({ sucesso: true, mensagem: 'Filial atualizada com sucesso!' });
+  } catch (error) {
+    console.error(`[Erro ao atualizar filial ${req.params.id}]:`, error);
+    res.status(500).json({ sucesso: false, erro: 'Falha ao atualizar filial.' });
+  }
+};
+
+module.exports = { listar, criar, deletar, atualizar };
