@@ -457,7 +457,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }
       }
     } 
-    // 2. LÓGICA DE CRIAÇÃO (ENTRADAS)
+// 2. LÓGICA DE CRIAÇÃO (ENTRADAS) E LIGAÇÃO AO CROSSDOCKING
     else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
@@ -465,6 +465,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         .eq('solicitacao_id', id);
 
       if (itensEntrada && itensEntrada.length > 0) {
+        // 1. Cria os itens no estoque físico
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
@@ -480,6 +481,43 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }));
 
         await supabase.from('estoque').insert(novoEstoqueLotes);
+
+        // ✨ 2. MÁGICA DO CROSSDOCKING: Verifica se há algum Crossdocking à espera desta NF
+        const nfParaProcurar = itensEntrada[0].nf_entrada;
+        
+        if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
+          // Procura solicitações de Crossdocking com esta NF nas notas_fiscais
+          const { data: crossdockingsPendentes } = await supabase
+            .from('solicitacoes')
+            .select('id, notas_fiscais!inner(numero_nf)')
+            .eq('tipo', 'Crossdocking')
+            .eq('notas_fiscais.numero_nf', nfParaProcurar);
+
+          if (crossdockingsPendentes && crossdockingsPendentes.length > 0) {
+            for (const cross of crossdockingsPendentes) {
+              // Copia os itens da Entrada para o Crossdocking!
+              const itensParaCrossdocking = itensEntrada.map(item => ({
+                solicitacao_id: cross.id, // Liga ao ID do Crossdocking
+                desenho_sap_manual: item.desenho_sap_manual,
+                part_number_manual: item.part_number_manual,
+                descricao_manual: item.descricao_manual,
+                quantidade_solicitada: item.quantidade_solicitada,
+                unidade_medida_manual: item.unidade_medida_manual,
+                valor_unitario_manual: item.valor_unitario_manual,
+                fornecedor: item.fornecedor,
+                referencia: item.referencia,
+                nf_entrada: item.nf_entrada,
+                wbs_element: item.wbs_element,
+                centro: item.centro,
+                deposito: item.deposito,
+                alocacao: 'CROSSDOCKING' // Marca a alocação para sabermos de onde veio
+              }));
+
+              // Insere os itens na tabela para o Crossdocking
+              await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
+            }
+          }
+        }
       }
     }
     // 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
