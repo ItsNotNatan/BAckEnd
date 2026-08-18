@@ -139,15 +139,26 @@ const listarDemandasPorEstoque = async (req, res) => {
     const dados = await service.listarDemandasPorEstoque(estoqueId);
 
     const dadosFormatados = dados.map(item => ({
+      idOriginal: item.solicitacoes.id,
       id: item.solicitacoes.ps,
       solicitante: item.solicitacoes.nome_solicitante,
       wbs: item.solicitacoes.wbs_destino || '-',
       status: item.solicitacoes.status,
       pl: item.solicitacoes.pl || '-',
       criacaoPl: new Date(item.solicitacoes.created_at).toLocaleDateString('pt-BR'),
-      dataEntrega: item.solicitacoes.data_necessidade ? new Date(item.solicitacoes.data_necessidade).toLocaleDateString('pt-BR') : 'não definido',
-      contagem: `${item.quantidade_solicitada} unid.` 
+      dataEntrega: item.solicitacoes.data_entrega ? new Date(item.solicitacoes.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'não definido',
+      
+      // ✨ Campos Mágicos para a Tabela Rica do Frontend
+      tipo: item.solicitacoes.tipo,
+      qtdMovimentada: item.quantidade_solicitada || 0,
+      unidadeMedida: item.unidade_medida_manual || 'Un',
+      
+      contagem: `${item.quantidade_solicitada} unid.`,
+      contagemStatus: item.solicitacoes.status === 'Concluído' ? 'verde' : (item.solicitacoes.status === 'Cancelado' || item.solicitacoes.status === 'Recusado' ? 'vermelho' : 'amarelo')
     }));
+
+    // Ordena do mais recente para o mais antigo
+    dadosFormatados.sort((a, b) => new Date(b.criacaoPl.split('/').reverse().join('-')) - new Date(a.criacaoPl.split('/').reverse().join('-')));
 
     res.status(200).json({ sucesso: true, dados: dadosFormatados });
   } catch (error) {

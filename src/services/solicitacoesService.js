@@ -792,8 +792,9 @@ const listarDemandasPorEstoque = async (estoqueId) => {
     .from('solicitacoes_itens')
     .select(`
       quantidade_solicitada,
+      unidade_medida_manual,
       solicitacoes!inner (
-        ps, pl, nome_solicitante, wbs_destino, status, created_at, data_necessidade
+        id, ps, pl, tipo, nome_solicitante, wbs_destino, status, created_at, data_necessidade, data_entrega
       )
     `) 
     .eq('estoque_id', estoqueId);
