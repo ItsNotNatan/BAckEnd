@@ -136,9 +136,10 @@ const listarDemandasPorEstoque = async (req, res) => {
   const { estoqueId } = req.params;
 
   try {
-    const dados = await service.listarDemandasPorEstoque(estoqueId);
+    const { demandas, edicoes } = await service.listarDemandasPorEstoque(estoqueId);
 
-    const dadosFormatados = dados.map(item => ({
+    // Formata os Fluxos Normais
+    const dadosFormatados = demandas.map(item => ({
       idOriginal: item.solicitacoes.id,
       id: item.solicitacoes.ps,
       solicitante: item.solicitacoes.nome_solicitante,
@@ -147,18 +148,45 @@ const listarDemandasPorEstoque = async (req, res) => {
       pl: item.solicitacoes.pl || '-',
       criacaoPl: new Date(item.solicitacoes.created_at).toLocaleDateString('pt-BR'),
       dataEntrega: item.solicitacoes.data_entrega ? new Date(item.solicitacoes.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'não definido',
-      
-      // ✨ Campos Mágicos para a Tabela Rica do Frontend
       tipo: item.solicitacoes.tipo,
       qtdMovimentada: item.quantidade_solicitada || 0,
       unidadeMedida: item.unidade_medida_manual || 'Un',
-      
       contagem: `${item.quantidade_solicitada} unid.`,
-      contagemStatus: item.solicitacoes.status === 'Concluído' ? 'verde' : (item.solicitacoes.status === 'Cancelado' || item.solicitacoes.status === 'Recusado' ? 'vermelho' : 'amarelo')
+      contagemStatus: item.solicitacoes.status === 'Concluído' ? 'verde' : (item.solicitacoes.status === 'Cancelado' || item.solicitacoes.status === 'Recusado' ? 'vermelho' : 'amarelo'),
+      timestamp: new Date(item.solicitacoes.created_at).getTime()
     }));
 
-    // Ordena do mais recente para o mais antigo
-    dadosFormatados.sort((a, b) => new Date(b.criacaoPl.split('/').reverse().join('-')) - new Date(a.criacaoPl.split('/').reverse().join('-')));
+    const formataValor = (val) => (!val || val === 'null') ? '(Vazio)' : val;
+
+    const dicionarioCampos = {
+      quantidade_disponivel: 'SALDO', alocacao: 'ALOCAÇÃO', desenho_sap: 'SAP', part_number: 'PN',
+      descricao: 'DESCRIÇÃO', fornecedor: 'FORNECEDOR', referencia: 'REFERÊNCIA', nf_entrada: 'NF',
+      unidade_medida: 'UN.', valor_unitario: 'VALOR', wbs: 'WBS', centro: 'CENTRO', deposito: 'DEPÓSITO'
+    };
+
+    // Formata as Edições Manuais
+    edicoes.forEach(ed => {
+      const nomeCampo = dicionarioCampos[ed.campo_alterado] || ed.campo_alterado.toUpperCase();
+      dadosFormatados.push({
+        idOriginal: ed.id,
+        id: `ED-${ed.id.substring(0,5).toUpperCase()}`,
+        solicitante: ed.usuario,
+        wbs: '-',
+        status: 'Concluído',
+        pl: '-',
+        criacaoPl: new Date(ed.created_at).toLocaleDateString('pt-BR'),
+        dataEntrega: '-',
+        tipo: 'Edição Manual',
+        qtdMovimentada: 0,
+        unidadeMedida: '-',
+        contagem: `[${nomeCampo}] De: ${formataValor(ed.valor_antigo)} ➔ Para: ${formataValor(ed.valor_novo)}`,
+        contagemStatus: 'amarelo',
+        timestamp: new Date(ed.created_at).getTime()
+      });
+    });
+
+    // Ordena tudo cronologicamente (do mais recente para o mais antigo)
+    dadosFormatados.sort((a, b) => b.timestamp - a.timestamp);
 
     res.status(200).json({ sucesso: true, dados: dadosFormatados });
   } catch (error) {

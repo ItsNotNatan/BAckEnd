@@ -788,7 +788,8 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
 };
 
 const listarDemandasPorEstoque = async (estoqueId) => {
-  const { data, error } = await supabase
+  // 1. Busca os fluxos normais (Entrada, Saída, etc)
+  const { data: demandas, error: erroDemandas } = await supabase
     .from('solicitacoes_itens')
     .select(`
       quantidade_solicitada,
@@ -799,8 +800,17 @@ const listarDemandasPorEstoque = async (estoqueId) => {
     `) 
     .eq('estoque_id', estoqueId);
 
-  if (error) throw error;
-  return data;
+  // 2. Busca o registo de edições manuais
+  const { data: edicoes, error: erroEdicoes } = await supabase
+    .from('historico_edicoes')
+    .select('*')
+    .eq('estoque_id', estoqueId);
+
+  if (erroDemandas) throw erroDemandas;
+  if (erroEdicoes) throw erroEdicoes;
+
+  // Devolve as duas listas juntas
+  return { demandas: demandas || [], edicoes: edicoes || [] };
 };
 
 module.exports = {
