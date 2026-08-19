@@ -1,13 +1,13 @@
 // =================================================================
 // ARQUIVO: server.js
-// DESCRIÇÃO: Ponto de entrada com Express + Socket.io para Tempo Real
+// DESCRIÇÃO: Ponto de entrada da aplicação Node.js / Express com Socket.io
 // =================================================================
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const http = require('http');           // ✨ 1. Importa o módulo HTTP nativo
-const { Server } = require('socket.io'); // ✨ 2. Importa o Socket.io
+const http = require('http');           // ✨ OBRIGATÓRIO PARA O SOCKET
+const { Server } = require('socket.io'); // ✨ OBRIGATÓRIO PARA O SOCKET
 
 // Importação das Rotas da Aplicação
 const authRoutes = require('./src/routes/authRoutes');
@@ -24,39 +24,38 @@ const app = express();
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: '*', // Permite conexões de qualquer frontend
+    origin: '*', 
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS']
   }
 });
 
-// Disponibiliza o 'io' globalmente na app (caso precise de emitir eventos nos controllers)
 app.set('io', io);
 
 io.on('connection', (socket) => {
-  console.log(`🟢 Cliente conectado ao tempo-real (Socket ID): ${socket.id}`);
+  console.log(`🟢 [Frontend Conectado ao Radar] ID: ${socket.id}`);
   socket.on('disconnect', () => {
-    console.log(`🔴 Cliente desconectado: ${socket.id}`);
+    console.log(`🔴 [Frontend Desconectado] ID: ${socket.id}`);
   });
 });
 
 // =================================================================
-// ⚡ MIDDLEWARE DE EMISSÃO AUTOMÁTICA DE EVENTOS (Baseado no ATMLog)
+// ⚡ MIDDLEWARE DE EMISSÃO AUTOMÁTICA DE EVENTOS (O RADAR)
 // =================================================================
-// Sempre que houver uma alteração bem-sucedida, avisa o frontend instantaneamente
 app.use((req, res, next) => {
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
     res.on('finish', () => {
-      if (res.statusCode < 200 || res.statusCode >= 300) return;
-      const endpoint = req.path || req.originalUrl || '';
-      
-      if (endpoint.includes('/estoque')) {
-        io.emit('estoque_atualizado');
-      } else if (endpoint.includes('/solicitacoes')) {
-        io.emit('solicitacoes_atualizadas');
-      } else if (endpoint.includes('/filiais')) {
-        io.emit('filiais_atualizadas');
-      } else if (endpoint.includes('/usuarios')) {
-        io.emit('usuarios_atualizados');
+      // Se a requisição foi um sucesso (Status 200 a 299)
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        const endpoint = req.originalUrl || req.path || '';
+        
+        if (endpoint.includes('/estoque')) {
+          console.log(`\n📡 [SOCKET.IO] Alteração no Estoque! Avisando ecrãs... (${endpoint})`);
+          io.emit('estoque_atualizado');
+        } 
+        else if (endpoint.includes('/solicitacoes') || endpoint.includes('/entrada') || endpoint.includes('/material')) {
+          console.log(`\n📡 [SOCKET.IO] Nova Solicitação ou Status alterado! Avisando painéis... (${endpoint})`);
+          io.emit('solicitacoes_atualizadas');
+        }
       }
     });
   }
@@ -64,7 +63,7 @@ app.use((req, res, next) => {
 });
 
 // =================================================================
-// 🛡️ CONFIGURAÇÃO DE CORS E MIDDLEWARES DA API
+// 🛡️ CONFIGURAÇÃO DE CORS E MIDDLEWARES
 // =================================================================
 app.use(cors({
   origin: '*',
@@ -83,19 +82,16 @@ app.use('/api/estoque', estoqueRoutes);
 app.use('/api/solicitacoes', solicitacoesRoutes);
 app.use('/api/filiais', filiaisRoutes);
 
-// 🩺 Rota de Diagnóstico (Health Check para o Render)
 app.get('/', (req, res) => {
-  res.status(200).json({
-    sucesso: true,
-    mensagem: '🚀 API NexusLog está online, com WebSocket ativo e operacional!'
-  });
+  res.status(200).json({ sucesso: true, mensagem: '🚀 API NexusLog + Socket.io Online!' });
 });
 
 // =================================================================
-// 🚀 INICIALIZAÇÃO DO SERVIDOR (Usando httpServer em vez de app.listen)
+// 🚀 INICIALIZAÇÃO DO SERVIDOR (MUITO IMPORTANTE USAR httpServer.listen)
 // =================================================================
 const PORT = process.env.PORT || 3001;
 
+// Tem de ser httpServer.listen em vez de app.listen!
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor NexusLog + Socket.io a rodar perfeitamente na porta ${PORT}`);
+  console.log(`🚀 Servidor NexusLog a rodar com Tempo Real na porta ${PORT}`);
 });
