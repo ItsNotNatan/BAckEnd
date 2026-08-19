@@ -15,6 +15,7 @@ const usuariosRoutes = require('./src/routes/usuariosRoutes');
 const estoqueRoutes = require('./src/routes/estoqueRoutes');
 const solicitacoesRoutes = require('./src/routes/solicitacoesRoutes');
 const filiaisRoutes = require('./src/routes/filiaisRoutes');
+const configuracoesRoutes = require('./src/routes/configuracoesRoutes');
 
 const app = express();
 
@@ -81,6 +82,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/estoque', estoqueRoutes);
 app.use('/api/solicitacoes', solicitacoesRoutes);
 app.use('/api/filiais', filiaisRoutes);
+app.use('/api/configuracoes', configuracoesRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).json({ sucesso: true, mensagem: '🚀 API NexusLog + Socket.io Online!' });
