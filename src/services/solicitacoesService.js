@@ -632,7 +632,7 @@ const deletarAnexo = async (anexoId) => {
   return true;
 };
 
-const reverterItemParaEstoque = async (idItem) => {
+const reverterItemParaEstoque = async (idItem, qtdDevolver) => {
   const { data: itemPedido, error: erroBusca } = await supabase
     .from('solicitacoes_itens')
     .select('quantidade_solicitada, estoque_id')
@@ -640,7 +640,6 @@ const reverterItemParaEstoque = async (idItem) => {
     .single();
 
   if (erroBusca || !itemPedido) throw new Error('Item não encontrado na solicitação.');
-
   if (!itemPedido.estoque_id) throw new Error('Este item não possui vínculo direto com uma prateleira de estoque para devolução.');
 
   const { data: itemEstoque, error: erroEstoque } = await supabase
@@ -651,24 +650,30 @@ const reverterItemParaEstoque = async (idItem) => {
 
   if (erroEstoque || !itemEstoque) throw new Error('Material não encontrado no estoque para devolução.');
 
-  const novaQuantidade = itemEstoque.quantidade_disponivel + itemPedido.quantidade_solicitada;
+  // ✨ Se o Frontend mandou uma quantidade, devolvemos só ela. Senão, devolvemos tudo.
+  const qtdRealDevolver = qtdDevolver ? Number(qtdDevolver) : Number(itemPedido.quantidade_solicitada);
 
-  const { error: erroUpdate } = await supabase
+  // 1. Devolve a quantidade à prateleira
+  const novaQuantidadeEstoque = Number(itemEstoque.quantidade_disponivel) + qtdRealDevolver;
+  const { error: erroUpdateEstoque } = await supabase
     .from('estoque')
-    .update({
-      quantidade_disponivel: novaQuantidade,
-      status: 'Disponível'
-    })
+    .update({ quantidade_disponivel: novaQuantidadeEstoque, status: 'Disponível' })
     .eq('id', itemEstoque.id);
 
-  if (erroUpdate) throw erroUpdate;
+  if (erroUpdateEstoque) throw erroUpdateEstoque;
 
-  const { error: erroDelete } = await supabase
-    .from('solicitacoes_itens')
-    .delete()
-    .eq('id', idItem);
+  // 2. Subtrai a quantidade do pedido original
+  const novaQtdPedido = Number(itemPedido.quantidade_solicitada) - qtdRealDevolver;
 
-  if (erroDelete) throw erroDelete;
+  if (novaQtdPedido <= 0) {
+    // Se devolveu tudo, apagamos a linha da solicitação
+    const { error: erroDelete } = await supabase.from('solicitacoes_itens').delete().eq('id', idItem);
+    if (erroDelete) throw erroDelete;
+  } else {
+    // Se foi devolução parcial, apenas subtrai na linha da solicitação
+    const { error: erroUpdatePedido } = await supabase.from('solicitacoes_itens').update({ quantidade_solicitada: novaQtdPedido }).eq('id', idItem);
+    if (erroUpdatePedido) throw erroUpdatePedido;
+  }
 
   return true;
 };

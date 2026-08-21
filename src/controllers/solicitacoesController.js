@@ -90,10 +90,11 @@ const removerAnexo = async (req, res) => {
 };
 
 const reverterItem = async (req, res) => {
-  const { id_item } = req.body;
+  // Agora recebemos a quantidade do frontend!
+  const { id_item, quantidade } = req.body;
 
   try {
-    await service.reverterItemParaEstoque(id_item);
+    await service.reverterItemParaEstoque(id_item, quantidade);
     res.status(200).json({ sucesso: true, mensagem: 'Item revertido para o estoque com sucesso!' });
   } catch (error) {
     console.error(`[Erro ao reverter item ${id_item}]:`, error.message);

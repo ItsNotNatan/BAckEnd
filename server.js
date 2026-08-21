@@ -50,12 +50,24 @@ app.use((req, res, next) => {
         const endpoint = req.originalUrl || req.path || '';
         
         if (endpoint.includes('/estoque')) {
-          console.log(`\n📡 [SOCKET.IO] Alteração no Estoque! Avisando ecrãs... (${endpoint})`);
+          console.log(`\n📡 [SOCKET.IO] Alteração no Estoque!`);
           io.emit('estoque_atualizado');
         } 
         else if (endpoint.includes('/solicitacoes') || endpoint.includes('/entrada') || endpoint.includes('/material')) {
-          console.log(`\n📡 [SOCKET.IO] Nova Solicitação ou Status alterado! Avisando painéis... (${endpoint})`);
+          console.log(`\n📡 [SOCKET.IO] Nova Solicitação ou Status alterado!`);
           io.emit('solicitacoes_atualizadas');
+        }
+        else if (endpoint.includes('/filiais')) {
+          console.log(`\n📡 [SOCKET.IO] Filial adicionada/removida!`);
+          io.emit('filiais_atualizadas');
+        }
+        else if (endpoint.includes('/usuarios')) {
+          console.log(`\n📡 [SOCKET.IO] Utilizador alterado!`);
+          io.emit('usuarios_atualizados');
+        }
+        else if (endpoint.includes('/configuracoes')) {
+          console.log(`\n📡 [SOCKET.IO] Configuração (Target) alterada!`);
+          io.emit('configuracoes_atualizadas');
         }
       }
     });
