@@ -482,39 +482,86 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
         await supabase.from('estoque').insert(novoEstoqueLotes);
 
-        // ✨ 2. MÁGICA DO CROSSDOCKING: Verifica se há algum Crossdocking à espera desta NF
+// ✨ 2. MÁGICA DO CROSSDOCKING: Verifica se há algum Crossdocking à espera desta NF
         const nfParaProcurar = itensEntrada[0].nf_entrada;
         
         if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
-          // Procura solicitações de Crossdocking com esta NF nas notas_fiscais
+          // Procura solicitações de Crossdocking com esta exata NF
           const { data: crossdockingsPendentes } = await supabase
             .from('solicitacoes')
-            .select('id, notas_fiscais!inner(numero_nf)')
+            .select(`
+              id, 
+              observacoes,
+              notas_fiscais!inner(numero_nf),
+              solicitacoes_itens (*)
+            `)
             .eq('tipo', 'Crossdocking')
             .eq('notas_fiscais.numero_nf', nfParaProcurar);
 
           if (crossdockingsPendentes && crossdockingsPendentes.length > 0) {
             for (const cross of crossdockingsPendentes) {
-              // Copia os itens da Entrada para o Crossdocking!
-              const itensParaCrossdocking = itensEntrada.map(item => ({
-                solicitacao_id: cross.id, // Liga ao ID do Crossdocking
-                desenho_sap_manual: item.desenho_sap_manual,
-                part_number_manual: item.part_number_manual,
-                descricao_manual: item.descricao_manual,
-                quantidade_solicitada: item.quantidade_solicitada,
-                unidade_medida_manual: item.unidade_medida_manual,
-                valor_unitario_manual: item.valor_unitario_manual,
-                fornecedor: item.fornecedor,
-                referencia: item.referencia,
-                nf_entrada: item.nf_entrada,
-                wbs_element: item.wbs_element,
-                centro: item.centro,
-                deposito: item.deposito,
-                alocacao: 'CROSSDOCKING' // Marca a alocação para sabermos de onde veio
-              }));
+              const isParcial = cross.observacoes && cross.observacoes.includes('[Saída Parcial]');
+              
+              if (!isParcial) {
+                // SE FOR TOTAL: Copia tudo da entrada para o crossdocking
+                const itensParaCrossdocking = itensEntrada.map(item => ({
+                  solicitacao_id: cross.id, 
+                  desenho_sap_manual: item.desenho_sap_manual,
+                  part_number_manual: item.part_number_manual,
+                  descricao_manual: item.descricao_manual,
+                  quantidade_solicitada: item.quantidade_solicitada,
+                  unidade_medida_manual: item.unidade_medida_manual,
+                  valor_unitario_manual: item.valor_unitario_manual,
+                  fornecedor: item.fornecedor,
+                  referencia: item.referencia,
+                  nf_entrada: item.nf_entrada,
+                  wbs_element: item.wbs_element,
+                  centro: item.centro,
+                  deposito: item.deposito,
+                  alocacao: 'CROSSDOCKING (TOTAL)' 
+                }));
+                await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
+              } 
+              else {
+                // ✨ SE FOR PARCIAL: O cruzamento é feito pela NF + Desenho SAP
+                const itensPedidosCross = cross.solicitacoes_itens; 
+                
+                for (const pedido of itensPedidosCross) {
+                  // Busca o item no array de entrada APENAS pelo Desenho SAP
+                  const itemEstoqueCriado = novoEstoqueLotes.find(e => 
+                    e.desenho_sap !== '-' && 
+                    e.desenho_sap.toUpperCase() === pedido.desenho_sap_manual.toUpperCase()
+                  );
 
-              // Insere os itens na tabela para o Crossdocking
-              await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
+                  if (itemEstoqueCriado) {
+                    // Abate a quantidade (Subtrai o que foi para o crossdocking)
+                    const qtdRestante = itemEstoqueCriado.quantidade_disponivel - pedido.quantidade_solicitada;
+                    
+                    // Garante que a prateleira não fica negativa
+                    itemEstoqueCriado.quantidade_disponivel = qtdRestante > 0 ? qtdRestante : 0;
+                    
+                    if (itemEstoqueCriado.quantidade_disponivel === 0) {
+                      itemEstoqueCriado.status = 'Zerado';
+                    }
+
+                    // Marca no Crossdocking que o item foi encontrado e descontado
+                    await supabase.from('solicitacoes_itens')
+                      .update({ alocacao: 'CROSSDOCKING (PARCIAL) - Descontado' })
+                      .eq('id', pedido.id);
+                  }
+                }
+                
+                // Grava o saldo final atualizado na tabela de estoque físico
+                for (const itemFinal of novoEstoqueLotes) {
+                  await supabase.from('estoque')
+                    .update({ 
+                      quantidade_disponivel: itemFinal.quantidade_disponivel,
+                      status: itemFinal.status
+                    })
+                    .eq('nf_entrada', itemFinal.nf_entrada)
+                    .eq('desenho_sap', itemFinal.desenho_sap);
+                }
+              }
             }
           }
         }
