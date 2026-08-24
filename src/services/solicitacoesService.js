@@ -125,8 +125,9 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
 
       // ✨ CORREÇÃO: Puxa a data formatada do banco (se existir), caso contrário cai nas regras padrão
+// ✨ CORREÇÃO: Agora extrai a data e a hora corretamente para enviar ao Frontend
       dataEntrega: sol.data_entrega
-        ? new Date(sol.data_entrega).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+        ? new Date(sol.data_entrega).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' às')
         : (sol.status === 'Concluído' ? 'Disponível' : null),
 
       status: sol.status,
