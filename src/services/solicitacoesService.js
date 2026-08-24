@@ -94,7 +94,7 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   if (error) throw error;
 
   const dadosFormatados = data.map(sol => {
-    let numeroPL = null; 
+    let numeroPL = null;
     if (sol.packing_lists) {
       if (Array.isArray(sol.packing_lists) && sol.packing_lists.length > 0) {
         numeroPL = sol.packing_lists[0].numero_pl;
@@ -119,16 +119,16 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
       dataCriacaoISO: sol.created_at,
       dataAprovacaoPL: dataAprovacaoValida,
       prazoFinalizacao: sol.prazo_finalizacao_pl,
-      criacaoPl: dataAprovacaoValida 
+      criacaoPl: dataAprovacaoValida
         ? new Date(dataAprovacaoValida).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date(dataAprovacaoValida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         : null,
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
-      
+
       // ✨ CORREÇÃO: Puxa a data formatada do banco (se existir), caso contrário cai nas regras padrão
-      dataEntrega: sol.data_entrega 
-        ? new Date(sol.data_entrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) 
+      dataEntrega: sol.data_entrega
+        ? new Date(sol.data_entrega).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
         : (sol.status === 'Concluído' ? 'Disponível' : null),
-        
+
       status: sol.status,
       observacoes: sol.observacoes,
       entregaUrgente: sol.entrega_urgente,
@@ -307,14 +307,14 @@ const criarReintegracao = async (solicitante, itens, anexos) => {
 
 const cancelarPL = async (solicitante, anexos) => {
   const dados = {
-    tipo: 'Cancelado', 
+    tipo: 'Cancelado',
     nome_solicitante: solicitante.nome,
     wbs_destino: solicitante.wbs,
     observacoes: solicitante.observacoes,
-    status: 'Pendente', 
+    status: 'Pendente',
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
-  
+
   const itensDB = (solicitante.itens || []).map(i => ({
     estoque_id: limparIdEstoque(i.estoque_id || i.id),
     desenho_sap_manual: i.desenho_sap_manual || i.desenhoSAP || '-',
@@ -345,11 +345,11 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
   let atualizacaoPS = { status: statusFinal, updated_at: new Date() };
 
   const foiAprovado = (statusFinal === 'Em Separação' || statusFinal === 'Concluído');
-  
+
   if (foiAprovado && !solicitacao.data_aprovacao_pl) {
     const dataAprovacao = new Date();
     atualizacaoPS.data_aprovacao_pl = dataAprovacao;
-    
+
     const prazoLimite = new Date(dataAprovacao);
     prazoLimite.setDate(prazoLimite.getDate() + 3);
     atualizacaoPS.prazo_finalizacao_pl = prazoLimite;
@@ -371,12 +371,12 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
   if (erroPS) throw erroPS;
 
-  let numeroPLGerado = null; 
+  let numeroPLGerado = null;
 
   const acabouDeSerAprovado = solicitacao.status === 'Pendente' && foiAprovado;
 
   if (!acabouDeSerAprovado && statusFinal === 'Concluído') {
-     await supabase.from('packing_lists').update({ status: 'Concluído' }).eq('solicitacao_id', id);
+    await supabase.from('packing_lists').update({ status: 'Concluído' }).eq('solicitacao_id', id);
   }
 
   if (acabouDeSerAprovado) {
@@ -386,13 +386,13 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         solicitacao_id: id,
         status: statusFinal === 'Concluído' ? 'Concluído' : 'Em Separação'
       }])
-      .select('numero_pl') 
+      .select('numero_pl')
       .single();
 
     if (erroPL && erroPL.code !== '23505') throw erroPL;
 
     if (dadosPL && dadosPL.numero_pl) {
-      numeroPLGerado = dadosPL.numero_pl; 
+      numeroPLGerado = dadosPL.numero_pl;
       await supabase
         .from('solicitacoes')
         .update({ pl: `PL #${numeroPLGerado}` })
@@ -456,7 +456,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           }
         }
       }
-    } 
+    }
 // 2. LÓGICA DE CRIAÇÃO (ENTRADAS) E LIGAÇÃO AO CROSSDOCKING
     else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
@@ -480,13 +480,19 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           status: 'Disponível'
         }));
 
-        await supabase.from('estoque').insert(novoEstoqueLotes);
+        // ✨ ADICIONADO O ".select()" PARA PEGAR OS IDs DOS ITENS RECÉM-CRIADOS
+        const { data: estoqueCriado, error: erroEstoque } = await supabase
+          .from('estoque')
+          .insert(novoEstoqueLotes)
+          .select();
 
-// ✨ 2. MÁGICA DO CROSSDOCKING: Verifica se há algum Crossdocking à espera desta NF
+        if (erroEstoque) throw erroEstoque;
+
+        // ✨ 2. MÁGICA DO CROSSDOCKING: Verifica se há algum Crossdocking à espera desta NF
         const nfParaProcurar = itensEntrada[0].nf_entrada;
         
         if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
-          // Procura solicitações de Crossdocking com esta exata NF
+          // Procura solicitações de Crossdocking com esta NF
           const { data: crossdockingsPendentes } = await supabase
             .from('solicitacoes')
             .select(`
@@ -503,9 +509,10 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
               const isParcial = cross.observacoes && cross.observacoes.includes('[Saída Parcial]');
               
               if (!isParcial) {
-                // SE FOR TOTAL: Copia tudo da entrada para o crossdocking
-                const itensParaCrossdocking = itensEntrada.map(item => ({
+                // SE FOR TOTAL: Copia tudo da entrada para o crossdocking, JÁ VINCULANDO O ESTOQUE_ID
+                const itensParaCrossdocking = itensEntrada.map((item, index) => ({
                   solicitacao_id: cross.id, 
+                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null, // ✨ VINCULA À PRATELEIRA
                   desenho_sap_manual: item.desenho_sap_manual,
                   part_number_manual: item.part_number_manual,
                   descricao_manual: item.descricao_manual,
@@ -523,43 +530,27 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                 await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
               } 
               else {
-                // ✨ SE FOR PARCIAL: O cruzamento é feito pela NF + Desenho SAP
+                // ✨ SE FOR PARCIAL: Apenas VINCULA O ESTOQUE_ID aos itens pedidos. 
+                // O desconto na quantidade só ocorrerá quando a Logística aprovar!
                 const itensPedidosCross = cross.solicitacoes_itens; 
                 
                 for (const pedido of itensPedidosCross) {
-                  // Busca o item no array de entrada APENAS pelo Desenho SAP
-                  const itemEstoqueCriado = novoEstoqueLotes.find(e => 
+                  // Busca o item correspondente no estoque recém-criado pelo Desenho SAP
+                  const itemEstoqueCriado = estoqueCriado.find(e => 
                     e.desenho_sap !== '-' && 
                     e.desenho_sap.toUpperCase() === pedido.desenho_sap_manual.toUpperCase()
                   );
 
                   if (itemEstoqueCriado) {
-                    // Abate a quantidade (Subtrai o que foi para o crossdocking)
-                    const qtdRestante = itemEstoqueCriado.quantidade_disponivel - pedido.quantidade_solicitada;
-                    
-                    // Garante que a prateleira não fica negativa
-                    itemEstoqueCriado.quantidade_disponivel = qtdRestante > 0 ? qtdRestante : 0;
-                    
-                    if (itemEstoqueCriado.quantidade_disponivel === 0) {
-                      itemEstoqueCriado.status = 'Zerado';
-                    }
-
-                    // Marca no Crossdocking que o item foi encontrado e descontado
+                    // Marca no Crossdocking que o item encontrou o seu par no estoque,
+                    // guardando o estoque_id. A função "atualizarStatus" já sabe descontar isso depois!
                     await supabase.from('solicitacoes_itens')
-                      .update({ alocacao: 'CROSSDOCKING (PARCIAL) - Descontado' })
+                      .update({ 
+                        estoque_id: itemEstoqueCriado.id, 
+                        alocacao: 'Vinculado à NF (Aguardando Aprovação)' 
+                      })
                       .eq('id', pedido.id);
                   }
-                }
-                
-                // Grava o saldo final atualizado na tabela de estoque físico
-                for (const itemFinal of novoEstoqueLotes) {
-                  await supabase.from('estoque')
-                    .update({ 
-                      quantidade_disponivel: itemFinal.quantidade_disponivel,
-                      status: itemFinal.status
-                    })
-                    .eq('nf_entrada', itemFinal.nf_entrada)
-                    .eq('desenho_sap', itemFinal.desenho_sap);
                 }
               }
             }
@@ -567,19 +558,20 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }
       }
     }
+    
     // 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
     else if (solicitacao.tipo === 'Reintegracao' || solicitacao.tipo === 'Reintegração' || solicitacao.tipo === 'Cancelado') {
-      
+
       let deveDevolverAoEstoque = true;
 
       // SEGREDO: Verificar se o item já tinha saído do estoque antes de devolver
       if (solicitacao.tipo === 'Cancelado' && solicitacao.observacoes) {
         const regexUUID = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
         const match = solicitacao.observacoes.match(regexUUID);
-        
+
         if (match) {
           const idOriginalParaCancelar = match[0];
-          
+
           // Busca a solicitação original para saber o status em que ela estava
           const { data: solOriginal } = await supabase
             .from('solicitacoes')
@@ -632,7 +624,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   .from('estoque')
                   .update({
                     quantidade_disponivel: novoSaldo,
-                    status: 'Disponível', 
+                    status: 'Disponível',
                     updated_at: new Date()
                   })
                   .eq('id', item.estoque_id);
@@ -755,11 +747,11 @@ const buscarHistoricoItem = async (estoqueId) => {
 // ✨ CORREÇÃO: Função atualizada para incluir data_entrega no banco de dados
 const atualizarLocalizacao = async (id, dadosLocal) => {
   const atualizacaoSol = {};
-  
+
   if (dadosLocal.filial) {
     atualizacaoSol.filial_origem_id = dadosLocal.filial;
   }
-  
+
   // Se o frontend enviar a data (mesmo que seja para a apagar enviando string vazia), nós guardamos
   if (dadosLocal.data_entrega !== undefined) {
     atualizacaoSol.data_entrega = dadosLocal.data_entrega || null;
@@ -849,7 +841,7 @@ const listarDemandasPorEstoque = async (estoqueId) => {
       solicitacoes!inner (
         id, ps, pl, tipo, nome_solicitante, wbs_destino, status, created_at, data_necessidade, data_entrega
       )
-    `) 
+    `)
     .eq('estoque_id', estoqueId);
 
   // 2. Busca o registo de edições manuais
@@ -874,7 +866,7 @@ module.exports = {
   criarCrossdocking,
   criarNotaFiscal,
   criarReintegracao,
-  cancelarPL, 
+  cancelarPL,
   atualizarStatus,
   deletarAnexo,
   reverterItemParaEstoque,
