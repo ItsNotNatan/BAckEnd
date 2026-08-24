@@ -27,8 +27,8 @@ const listarEstoqueGeral = async (filial = '', incluirZerados = false) => {
       solicitacoes!inner(status, tipo)
     `)
     .eq('solicitacoes.status', 'Pendente')
-    // Apenas pedidos que vão RETIRAR material do estoque entram como reserva:
-    .in('solicitacoes.tipo', ['Material', 'Transferencia WBS', 'Transfer. WBS']); 
+    // ✨ CORREÇÃO: Crossdocking adicionado à lista de saídas que reservam estoque!
+    .in('solicitacoes.tipo', ['Material', 'Transferencia WBS', 'Transfer. WBS', 'Crossdocking']); 
 
   if (erroPendentes) {
     console.error('[Erro ao buscar reservas]:', erroPendentes);
@@ -53,13 +53,11 @@ const listarEstoqueGeral = async (filial = '', incluirZerados = false) => {
   return estoqueFinal;
 };
 
-// ✨ NOVA FUNÇÃO: Atualiza os dados e regista as alterações no histórico
+// NOVA FUNÇÃO: Atualiza os dados e regista as alterações no histórico
 const atualizarItemEstoque = async (id, dadosAtualizados) => {
-  // 1. Extraímos quem fez a edição (enviado pelo Frontend)
   const usuarioEditor = dadosAtualizados.usuario_editor || 'Sistema';
   delete dadosAtualizados.usuario_editor;
 
-  // 2. Buscamos o valor atual no banco para comparar
   const { data: itemAntigo, error: erroBusca } = await supabase
     .from('estoque')
     .select('*')
@@ -68,7 +66,6 @@ const atualizarItemEstoque = async (id, dadosAtualizados) => {
 
   if (erroBusca) throw erroBusca;
 
-  // 3. Preparamos o histórico de tudo o que mudou
   const historico = [];
   for (const campo in dadosAtualizados) {
     const valorVelho = String(itemAntigo[campo] || '');
@@ -85,7 +82,6 @@ const atualizarItemEstoque = async (id, dadosAtualizados) => {
     }
   }
 
-  // 4. Atualiza os dados na tabela oficial de estoque
   const { error } = await supabase
     .from('estoque')
     .update(dadosAtualizados)
@@ -93,7 +89,6 @@ const atualizarItemEstoque = async (id, dadosAtualizados) => {
 
   if (error) throw error;
 
-  // 5. Salva o relatório de edições na tabela de histórico
   if (historico.length > 0) {
     await supabase.from('historico_edicoes').insert(historico);
   }
@@ -103,5 +98,5 @@ const atualizarItemEstoque = async (id, dadosAtualizados) => {
 
 module.exports = {
   listarEstoqueGeral,
-  atualizarItemEstoque // ✨ Exportar a nova função
+  atualizarItemEstoque 
 };
