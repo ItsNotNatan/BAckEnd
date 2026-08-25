@@ -65,7 +65,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // ✨ CORREÇÃO: Adicionámos data_entrega no select para o banco de dados devolver este dado!
   let query = supabase
     .from('solicitacoes')
     .select(`
@@ -124,8 +123,6 @@ const listarSolicitacoes = async (page = 1, limit = 10, busca = '', tipo = '', f
         : null,
       dataFinalizacaoISO: (sol.status === 'Concluído' && sol.updated_at) ? sol.updated_at : null,
 
-      // ✨ CORREÇÃO: Puxa a data formatada do banco (se existir), caso contrário cai nas regras padrão
-// ✨ CORREÇÃO: Agora extrai a data e a hora corretamente para enviar ao Frontend
       dataEntrega: sol.data_entrega
         ? new Date(sol.data_entrega).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' às')
         : (sol.status === 'Concluído' ? 'Disponível' : null),
@@ -203,29 +200,32 @@ const criarEntrada = async (solicitante, itens, anexos) => {
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
+  // ✨ AQUI: Lemos perfeitamente do novo mapeamento
   const itensDB = itens.map(i => {
     let precoLimpo = 0;
-    if (i.poNetPrice) {
-      let v = String(i.poNetPrice).replace(/[^\d.,-]/g, '');
+    const valorFront = i.valor_unitario || i.poNetPrice;
+    if (valorFront) {
+      let v = String(valorFront).replace(/[^\d.,-]/g, '');
       if (v.includes('.') && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
       else if (v.includes(',')) v = v.replace(',', '.');
       precoLimpo = parseFloat(v) || 0;
     }
 
     return {
-      desenho_sap_manual: i.desenhoSAP || '-',
-      part_number_manual: i.numPecaFabricante,
-      descricao_manual: i.materialDescription || i.vendorDescription || 'Sem descrição',
+      desenho_sap_manual: i.desenho_sap || i.desenhoSAP || '-',
+      part_number_manual: i.part_number || i.numPecaFabricante || 'SEM-PN',
+      descricao_manual: i.descricao || i.materialDescription || i.vendorDescription || 'Sem descrição',
       quantidade_solicitada: Math.max(1, i.qtd || i.qtdFornecida || 1),
-      unidade_medida_manual: i.unidadeMedida || 'Unid',
+      unidade_medida_manual: i.unidade_medida || i.unidadeMedida || 'Unid',
       valor_unitario_manual: precoLimpo,
       fornecedor: i.fornecedor || null,
       referencia: i.referencia || null,
-      nf_entrada: i.nfEntrada || null,
-      wbs_element: i.wbsElement || null,
-      emissao_nf: i.emissaoNF || null,
-      receb_nf: i.recebNF || null,
-      documento_compras: i.docCompras || null,
+      nf_entrada: i.nf_entrada || i.nfEntrada || null,
+      wbs_element: i.wbs_element || i.wbsElement || null,
+      nome_projeto: i.nome_projeto || i.nomeProjeto || null, // ✨ CAMPO NOME_PROJETO (NOVO)
+      emissao_nf: i.emissao_nf || i.emissaoNF || null,
+      receb_nf: i.receb_nf || i.recebNF || null,
+      documento_compras: i.documento_compras || i.docCompras || null,
       centro: i.centro || null,
       deposito: i.deposito || null,
       alocacao: i.alocacao || null
@@ -447,6 +447,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   quantidade_disponivel: quantidadeRetirada,
                   status: 'Disponível',
                   wbs: solicitacao.wbs_destino,
+                  nome_projeto: estoqueAtual.nome_projeto || null, // ✨ MANTÉM NOME DE PROJETO
                   is_transferencia: true,
                   alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`
                 };
@@ -458,7 +459,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }
       }
     }
-// 2. LÓGICA DE CRIAÇÃO (ENTRADAS) E LIGAÇÃO AO CROSSDOCKING
+    // 2. LÓGICA DE CRIAÇÃO (ENTRADAS) E LIGAÇÃO AO CROSSDOCKING
     else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
@@ -466,7 +467,8 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         .eq('solicitacao_id', id);
 
       if (itensEntrada && itensEntrada.length > 0) {
-        // 1. Cria os itens no estoque físico
+        
+        // ✨ AQUI: Cria os itens no estoque físico repassando NOME_PROJETO
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
@@ -476,12 +478,12 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           nf_entrada: item.nf_entrada || 'SEM-NF',
           documento_compras: item.documento_compras || '-',
           wbs: item.wbs_element || '-',
+          nome_projeto: item.nome_projeto || null, // ✨ REPASSA O NOME DO PROJETO PARA A PRATELEIRA
           alocacao: item.alocacao || 'Pendente',
           quantidade_disponivel: item.quantidade_solicitada,
           status: 'Disponível'
         }));
 
-        // ✨ ADICIONADO O ".select()" PARA PEGAR OS IDs DOS ITENS RECÉM-CRIADOS
         const { data: estoqueCriado, error: erroEstoque } = await supabase
           .from('estoque')
           .insert(novoEstoqueLotes)
@@ -489,11 +491,10 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
         if (erroEstoque) throw erroEstoque;
 
-        // ✨ 2. MÁGICA DO CROSSDOCKING: Verifica se há algum Crossdocking à espera desta NF
+        // MÁGICA DO CROSSDOCKING
         const nfParaProcurar = itensEntrada[0].nf_entrada;
         
         if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
-          // Procura solicitações de Crossdocking com esta NF
           const { data: crossdockingsPendentes } = await supabase
             .from('solicitacoes')
             .select(`
@@ -510,10 +511,9 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
               const isParcial = cross.observacoes && cross.observacoes.includes('[Saída Parcial]');
               
               if (!isParcial) {
-                // SE FOR TOTAL: Copia tudo da entrada para o crossdocking, JÁ VINCULANDO O ESTOQUE_ID
                 const itensParaCrossdocking = itensEntrada.map((item, index) => ({
                   solicitacao_id: cross.id, 
-                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null, // ✨ VINCULA À PRATELEIRA
+                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null, 
                   desenho_sap_manual: item.desenho_sap_manual,
                   part_number_manual: item.part_number_manual,
                   descricao_manual: item.descricao_manual,
@@ -524,6 +524,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   referencia: item.referencia,
                   nf_entrada: item.nf_entrada,
                   wbs_element: item.wbs_element,
+                  nome_projeto: item.nome_projeto, // ✨ Copia para o Crossdocking
                   centro: item.centro,
                   deposito: item.deposito,
                   alocacao: 'CROSSDOCKING (TOTAL)' 
@@ -531,20 +532,15 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                 await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
               } 
               else {
-                // ✨ SE FOR PARCIAL: Apenas VINCULA O ESTOQUE_ID aos itens pedidos. 
-                // O desconto na quantidade só ocorrerá quando a Logística aprovar!
                 const itensPedidosCross = cross.solicitacoes_itens; 
                 
                 for (const pedido of itensPedidosCross) {
-                  // Busca o item correspondente no estoque recém-criado pelo Desenho SAP
                   const itemEstoqueCriado = estoqueCriado.find(e => 
                     e.desenho_sap !== '-' && 
                     e.desenho_sap.toUpperCase() === pedido.desenho_sap_manual.toUpperCase()
                   );
 
                   if (itemEstoqueCriado) {
-                    // Marca no Crossdocking que o item encontrou o seu par no estoque,
-                    // guardando o estoque_id. A função "atualizarStatus" já sabe descontar isso depois!
                     await supabase.from('solicitacoes_itens')
                       .update({ 
                         estoque_id: itemEstoqueCriado.id, 
@@ -565,7 +561,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
       let deveDevolverAoEstoque = true;
 
-      // SEGREDO: Verificar se o item já tinha saído do estoque antes de devolver
       if (solicitacao.tipo === 'Cancelado' && solicitacao.observacoes) {
         const regexUUID = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
         const match = solicitacao.observacoes.match(regexUUID);
@@ -573,7 +568,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         if (match) {
           const idOriginalParaCancelar = match[0];
 
-          // Busca a solicitação original para saber o status em que ela estava
           const { data: solOriginal } = await supabase
             .from('solicitacoes')
             .select('status')
@@ -581,18 +575,15 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
             .single();
 
           if (solOriginal) {
-            // Se a original estava "Pendente", o estoque NUNCA foi subtraído! Logo, não podemos devolver.
             if (solOriginal.status === 'Pendente') {
               deveDevolverAoEstoque = false;
             }
 
-            // Altera o status da Original para Cancelado
             await supabase
               .from('solicitacoes')
               .update({ status: 'Cancelado', updated_at: new Date() })
               .eq('id', idOriginalParaCancelar);
 
-            // Altera a PL original para Cancelada (se existir)
             await supabase
               .from('packing_lists')
               .update({ status: 'Cancelado' })
@@ -690,10 +681,8 @@ const reverterItemParaEstoque = async (idItem, qtdDevolver) => {
 
   if (erroEstoque || !itemEstoque) throw new Error('Material não encontrado no estoque para devolução.');
 
-  // ✨ Se o Frontend mandou uma quantidade, devolvemos só ela. Senão, devolvemos tudo.
   const qtdRealDevolver = qtdDevolver ? Number(qtdDevolver) : Number(itemPedido.quantidade_solicitada);
 
-  // 1. Devolve a quantidade à prateleira
   const novaQuantidadeEstoque = Number(itemEstoque.quantidade_disponivel) + qtdRealDevolver;
   const { error: erroUpdateEstoque } = await supabase
     .from('estoque')
@@ -702,15 +691,12 @@ const reverterItemParaEstoque = async (idItem, qtdDevolver) => {
 
   if (erroUpdateEstoque) throw erroUpdateEstoque;
 
-  // 2. Subtrai a quantidade do pedido original
   const novaQtdPedido = Number(itemPedido.quantidade_solicitada) - qtdRealDevolver;
 
   if (novaQtdPedido <= 0) {
-    // Se devolveu tudo, apagamos a linha da solicitação
     const { error: erroDelete } = await supabase.from('solicitacoes_itens').delete().eq('id', idItem);
     if (erroDelete) throw erroDelete;
   } else {
-    // Se foi devolução parcial, apenas subtrai na linha da solicitação
     const { error: erroUpdatePedido } = await supabase.from('solicitacoes_itens').update({ quantidade_solicitada: novaQtdPedido }).eq('id', idItem);
     if (erroUpdatePedido) throw erroUpdatePedido;
   }
@@ -745,7 +731,6 @@ const buscarHistoricoItem = async (estoqueId) => {
   }));
 };
 
-// ✨ CORREÇÃO: Função atualizada para incluir data_entrega no banco de dados
 const atualizarLocalizacao = async (id, dadosLocal) => {
   const atualizacaoSol = {};
 
@@ -753,7 +738,6 @@ const atualizarLocalizacao = async (id, dadosLocal) => {
     atualizacaoSol.filial_origem_id = dadosLocal.filial;
   }
 
-  // Se o frontend enviar a data (mesmo que seja para a apagar enviando string vazia), nós guardamos
   if (dadosLocal.data_entrega !== undefined) {
     atualizacaoSol.data_entrega = dadosLocal.data_entrega || null;
   }
@@ -793,10 +777,12 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
 
   if (!itens || itens.length === 0) return true;
 
+  // ✨ ATUALIZADO: Prepara a edição manual respeitando as novas colunas
   const itensDB = itens.map(i => {
     let precoLimpo = 0;
-    if (i.poNetPrice) {
-      let v = String(i.poNetPrice).replace(/[^\d.,-]/g, '');
+    const valorFront = i.valor_unitario || i.poNetPrice || i.valor_unitario_manual;
+    if (valorFront) {
+      let v = String(valorFront).replace(/[^\d.,-]/g, '');
       if (v.includes('.') && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
       else if (v.includes(',')) v = v.replace(',', '.');
       precoLimpo = parseFloat(v) || 0;
@@ -804,18 +790,19 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
 
     return {
       solicitacao_id: solicitacaoId,
-      desenho_sap_manual: i.desenhoSAP || i.desenho_sap_manual || null,
-      part_number_manual: i.numPecaFabricante || i.part_number_manual || i.part_number || null,
+      desenho_sap_manual: i.desenho_sap || i.desenhoSAP || i.desenho_sap_manual || null,
+      part_number_manual: i.part_number || i.numPecaFabricante || i.part_number_manual || null,
       fornecedor: i.fornecedor || null,
       referencia: i.referencia || null,
-      quantidade_solicitada: Math.max(1, Number(i.qtdFornecida || i.quantidade_solicitada || i.quantidade || i.qtd || 1)),
-      nf_entrada: i.nfEntrada || i.nf_entrada || null,
-      unidade_medida_manual: i.unidadeMedida || i.unidade_medida_manual || 'Unid',
-      descricao_manual: i.vendorDescription || i.materialDescription || i.descricao_manual || i.descricao || 'Sem descrição',
-      wbs_element: i.wbsElement || i.wbs_element || i.wbs || null,
-      emissao_nf: i.emissaoNF ? i.emissaoNF : null,
-      receb_nf: i.recebNF ? i.recebNF : null,
-      documento_compras: i.docCompras || i.documento_compras || null,
+      quantidade_solicitada: Math.max(1, Number(i.qtd || i.qtdFornecida || i.quantidade_solicitada || i.quantidade || 1)),
+      nf_entrada: i.nf_entrada || i.nfEntrada || null,
+      unidade_medida_manual: i.unidade_medida || i.unidadeMedida || i.unidade_medida_manual || 'Unid',
+      descricao_manual: i.descricao || i.vendorDescription || i.materialDescription || i.descricao_manual || 'Sem descrição',
+      wbs_element: i.wbs_element || i.wbsElement || i.wbs || null,
+      nome_projeto: i.nome_projeto || i.nomeProjeto || null, // ✨ CAMPO NOVO AQUI TAMBÉM
+      emissao_nf: i.emissao_nf || i.emissaoNF || null,
+      receb_nf: i.receb_nf || i.recebNF || null,
+      documento_compras: i.documento_compras || i.docCompras || null,
       valor_unitario_manual: precoLimpo,
       centro: i.centro || null,
       deposito: i.deposito || null,
@@ -833,7 +820,6 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
 };
 
 const listarDemandasPorEstoque = async (estoqueId) => {
-  // 1. Busca os fluxos normais (Entrada, Saída, etc)
   const { data: demandas, error: erroDemandas } = await supabase
     .from('solicitacoes_itens')
     .select(`
@@ -845,7 +831,6 @@ const listarDemandasPorEstoque = async (estoqueId) => {
     `)
     .eq('estoque_id', estoqueId);
 
-  // 2. Busca o registo de edições manuais
   const { data: edicoes, error: erroEdicoes } = await supabase
     .from('historico_edicoes')
     .select('*')
@@ -854,7 +839,6 @@ const listarDemandasPorEstoque = async (estoqueId) => {
   if (erroDemandas) throw erroDemandas;
   if (erroEdicoes) throw erroEdicoes;
 
-  // Devolve as duas listas juntas
   return { demandas: demandas || [], edicoes: edicoes || [] };
 };
 
