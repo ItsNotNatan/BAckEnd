@@ -200,7 +200,6 @@ const criarEntrada = async (solicitante, itens, anexos) => {
     filial_origem_id: solicitante.filial_origem || solicitante.filial_id
   };
 
-  // ✨ AQUI: Lemos perfeitamente do novo mapeamento
   const itensDB = itens.map(i => {
     let precoLimpo = 0;
     const valorFront = i.valor_unitario || i.poNetPrice;
@@ -222,7 +221,7 @@ const criarEntrada = async (solicitante, itens, anexos) => {
       referencia: i.referencia || null,
       nf_entrada: i.nf_entrada || i.nfEntrada || null,
       wbs_element: i.wbs_element || i.wbsElement || null,
-      nome_projeto: i.nome_projeto || i.nomeProjeto || null, // ✨ CAMPO NOME_PROJETO (NOVO)
+      nome_projeto: i.nome_projeto || i.nomeProjeto || null, 
       emissao_nf: i.emissao_nf || i.emissaoNF || null,
       receb_nf: i.receb_nf || i.recebNF || null,
       documento_compras: i.documento_compras || i.docCompras || null,
@@ -434,6 +433,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   updated_at: new Date()
                 })
                 .eq('id', item.estoque_id);
+
               if (solicitacao.tipo === 'Transferencia WBS') {
                 const itemParaNovoWBS = {
                   material_id: estoqueAtual.material_id,
@@ -446,9 +446,18 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   quantidade_disponivel: quantidadeRetirada,
                   status: 'Disponível',
                   wbs: solicitacao.wbs_destino,
-                  nome_projeto: estoqueAtual.nome_projeto || null, // ✨ MANTÉM NOME DE PROJETO AQUI
+                  nome_projeto: estoqueAtual.nome_projeto || null, 
                   is_transferencia: true,
-                  alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`
+                  alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`,
+                  // ✨ AQUI: CAMPOS FALTANTES QUE DEVEM VIAJAR NA TRANSFERÊNCIA
+                  fornecedor: estoqueAtual.fornecedor || null,
+                  referencia: estoqueAtual.referencia || null,
+                  unidade_medida: estoqueAtual.unidade_medida || 'Unid',
+                  emissao_nf: estoqueAtual.emissao_nf || null,
+                  receb_nf: estoqueAtual.receb_nf || null,
+                  valor_unitario: estoqueAtual.valor_unitario || null,
+                  centro: estoqueAtual.centro || null,
+                  deposito: estoqueAtual.deposito || null
                 };
 
                 await supabase.from('estoque').insert([itemParaNovoWBS]);
@@ -466,21 +475,30 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         .eq('solicitacao_id', id);
 
       if (itensEntrada && itensEntrada.length > 0) {
-
-        // ✨ AQUI: Cria os itens no estoque físico repassando NOME_PROJETO
+        
+        // ✨ AQUI: CAMPOS FALTANTES QUE FALTAVAM REGISTRAR NO ESTOQUE!
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
           part_number: item.part_number_manual || 'SEM-PN',
           descricao: item.descricao_manual || 'Sem descrição',
-          filial_id: solicitacao.filial_origem_id || null,
+          filial_id: solicitacao.filial_origem_id || null, 
           nf_entrada: item.nf_entrada || 'SEM-NF',
           documento_compras: item.documento_compras || '-',
           wbs: item.wbs_element || '-',
-          nome_projeto: item.nome_projeto || null, // ✨ GARANTE A GRAVAÇÃO DO NOME DO PROJETO AQUI
+          nome_projeto: item.nome_projeto || null, 
           alocacao: item.alocacao || 'Pendente',
           quantidade_disponivel: item.quantidade_solicitada,
-          status: 'Disponível'
+          status: 'Disponível',
+          
+          fornecedor: item.fornecedor || null,
+          referencia: item.referencia || null,
+          unidade_medida: item.unidade_medida_manual || 'Unid',
+          emissao_nf: item.emissao_nf || null,
+          receb_nf: item.receb_nf || null,
+          valor_unitario: item.valor_unitario_manual || null,
+          centro: item.centro || null,
+          deposito: item.deposito || null
         }));
 
         const { data: estoqueCriado, error: erroEstoque } = await supabase
@@ -492,7 +510,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
         // MÁGICA DO CROSSDOCKING
         const nfParaProcurar = itensEntrada[0].nf_entrada;
-
+        
         if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
           const { data: crossdockingsPendentes } = await supabase
             .from('solicitacoes')
@@ -508,11 +526,11 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           if (crossdockingsPendentes && crossdockingsPendentes.length > 0) {
             for (const cross of crossdockingsPendentes) {
               const isParcial = cross.observacoes && cross.observacoes.includes('[Saída Parcial]');
-
+              
               if (!isParcial) {
                 const itensParaCrossdocking = itensEntrada.map((item, index) => ({
-                  solicitacao_id: cross.id,
-                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null,
+                  solicitacao_id: cross.id, 
+                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null, 
                   desenho_sap_manual: item.desenho_sap_manual,
                   part_number_manual: item.part_number_manual,
                   descricao_manual: item.descricao_manual,
@@ -523,27 +541,27 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   referencia: item.referencia,
                   nf_entrada: item.nf_entrada,
                   wbs_element: item.wbs_element,
-                  nome_projeto: item.nome_projeto, // ✨ Copia para o Crossdocking
+                  nome_projeto: item.nome_projeto, 
                   centro: item.centro,
                   deposito: item.deposito,
-                  alocacao: 'CROSSDOCKING (TOTAL)'
+                  alocacao: 'CROSSDOCKING (TOTAL)' 
                 }));
                 await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
-              }
+              } 
               else {
-                const itensPedidosCross = cross.solicitacoes_itens;
-
+                const itensPedidosCross = cross.solicitacoes_itens; 
+                
                 for (const pedido of itensPedidosCross) {
-                  const itemEstoqueCriado = estoqueCriado.find(e =>
-                    e.desenho_sap !== '-' &&
+                  const itemEstoqueCriado = estoqueCriado.find(e => 
+                    e.desenho_sap !== '-' && 
                     e.desenho_sap.toUpperCase() === pedido.desenho_sap_manual.toUpperCase()
                   );
 
                   if (itemEstoqueCriado) {
                     await supabase.from('solicitacoes_itens')
-                      .update({
-                        estoque_id: itemEstoqueCriado.id,
-                        alocacao: 'Vinculado à NF (Aguardando Aprovação)'
+                      .update({ 
+                        estoque_id: itemEstoqueCriado.id, 
+                        alocacao: 'Vinculado à NF (Aguardando Aprovação)' 
                       })
                       .eq('id', pedido.id);
                   }
@@ -554,7 +572,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }
       }
     }
-
+    
     // 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
     else if (solicitacao.tipo === 'Reintegracao' || solicitacao.tipo === 'Reintegração' || solicitacao.tipo === 'Cancelado') {
 
@@ -776,7 +794,6 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
 
   if (!itens || itens.length === 0) return true;
 
-  // ✨ ATUALIZADO: Prepara a edição manual respeitando as novas colunas
   const itensDB = itens.map(i => {
     let precoLimpo = 0;
     const valorFront = i.valor_unitario || i.poNetPrice || i.valor_unitario_manual;
@@ -798,7 +815,7 @@ const atualizarItensDaSolicitacao = async (solicitacaoId, itens) => {
       unidade_medida_manual: i.unidade_medida || i.unidadeMedida || i.unidade_medida_manual || 'Unid',
       descricao_manual: i.descricao || i.vendorDescription || i.materialDescription || i.descricao_manual || 'Sem descrição',
       wbs_element: i.wbs_element || i.wbsElement || i.wbs || null,
-      nome_projeto: i.nome_projeto || i.nomeProjeto || null, // ✨ CAMPO NOVO AQUI TAMBÉM
+      nome_projeto: i.nome_projeto || i.nomeProjeto || null, 
       emissao_nf: i.emissao_nf || i.emissaoNF || null,
       receb_nf: i.receb_nf || i.recebNF || null,
       documento_compras: i.documento_compras || i.docCompras || null,
