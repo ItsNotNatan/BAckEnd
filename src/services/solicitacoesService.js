@@ -434,7 +434,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   updated_at: new Date()
                 })
                 .eq('id', item.estoque_id);
-
               if (solicitacao.tipo === 'Transferencia WBS') {
                 const itemParaNovoWBS = {
                   material_id: estoqueAtual.material_id,
@@ -447,7 +446,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   quantidade_disponivel: quantidadeRetirada,
                   status: 'Disponível',
                   wbs: solicitacao.wbs_destino,
-                  nome_projeto: estoqueAtual.nome_projeto || null, // ✨ MANTÉM NOME DE PROJETO
+                  nome_projeto: estoqueAtual.nome_projeto || null, // ✨ MANTÉM NOME DE PROJETO AQUI
                   is_transferencia: true,
                   alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`
                 };
@@ -467,18 +466,18 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         .eq('solicitacao_id', id);
 
       if (itensEntrada && itensEntrada.length > 0) {
-        
+
         // ✨ AQUI: Cria os itens no estoque físico repassando NOME_PROJETO
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
           part_number: item.part_number_manual || 'SEM-PN',
           descricao: item.descricao_manual || 'Sem descrição',
-          filial_id: solicitacao.filial_origem_id || null, 
+          filial_id: solicitacao.filial_origem_id || null,
           nf_entrada: item.nf_entrada || 'SEM-NF',
           documento_compras: item.documento_compras || '-',
           wbs: item.wbs_element || '-',
-          nome_projeto: item.nome_projeto || null, // ✨ REPASSA O NOME DO PROJETO PARA A PRATELEIRA
+          nome_projeto: item.nome_projeto || null, // ✨ GARANTE A GRAVAÇÃO DO NOME DO PROJETO AQUI
           alocacao: item.alocacao || 'Pendente',
           quantidade_disponivel: item.quantidade_solicitada,
           status: 'Disponível'
@@ -493,7 +492,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
         // MÁGICA DO CROSSDOCKING
         const nfParaProcurar = itensEntrada[0].nf_entrada;
-        
+
         if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
           const { data: crossdockingsPendentes } = await supabase
             .from('solicitacoes')
@@ -509,11 +508,11 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           if (crossdockingsPendentes && crossdockingsPendentes.length > 0) {
             for (const cross of crossdockingsPendentes) {
               const isParcial = cross.observacoes && cross.observacoes.includes('[Saída Parcial]');
-              
+
               if (!isParcial) {
                 const itensParaCrossdocking = itensEntrada.map((item, index) => ({
-                  solicitacao_id: cross.id, 
-                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null, 
+                  solicitacao_id: cross.id,
+                  estoque_id: estoqueCriado ? estoqueCriado[index].id : null,
                   desenho_sap_manual: item.desenho_sap_manual,
                   part_number_manual: item.part_number_manual,
                   descricao_manual: item.descricao_manual,
@@ -527,24 +526,24 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   nome_projeto: item.nome_projeto, // ✨ Copia para o Crossdocking
                   centro: item.centro,
                   deposito: item.deposito,
-                  alocacao: 'CROSSDOCKING (TOTAL)' 
+                  alocacao: 'CROSSDOCKING (TOTAL)'
                 }));
                 await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
-              } 
+              }
               else {
-                const itensPedidosCross = cross.solicitacoes_itens; 
-                
+                const itensPedidosCross = cross.solicitacoes_itens;
+
                 for (const pedido of itensPedidosCross) {
-                  const itemEstoqueCriado = estoqueCriado.find(e => 
-                    e.desenho_sap !== '-' && 
+                  const itemEstoqueCriado = estoqueCriado.find(e =>
+                    e.desenho_sap !== '-' &&
                     e.desenho_sap.toUpperCase() === pedido.desenho_sap_manual.toUpperCase()
                   );
 
                   if (itemEstoqueCriado) {
                     await supabase.from('solicitacoes_itens')
-                      .update({ 
-                        estoque_id: itemEstoqueCriado.id, 
-                        alocacao: 'Vinculado à NF (Aguardando Aprovação)' 
+                      .update({
+                        estoque_id: itemEstoqueCriado.id,
+                        alocacao: 'Vinculado à NF (Aguardando Aprovação)'
                       })
                       .eq('id', pedido.id);
                   }
@@ -555,7 +554,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }
       }
     }
-    
+
     // 3. LÓGICA DE DEVOLUÇÃO (REINTEGRAÇÃO E CANCELAMENTO)
     else if (solicitacao.tipo === 'Reintegracao' || solicitacao.tipo === 'Reintegração' || solicitacao.tipo === 'Cancelado') {
 
