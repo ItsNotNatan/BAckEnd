@@ -449,7 +449,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   nome_projeto: estoqueAtual.nome_projeto || null, 
                   is_transferencia: true,
                   alocacao: `Origem: ${solicitacao.wbs_origem || estoqueAtual.wbs || 'Desconhecida'}`,
-                  // ✨ AQUI: CAMPOS FALTANTES QUE DEVEM VIAJAR NA TRANSFERÊNCIA
                   fornecedor: estoqueAtual.fornecedor || null,
                   referencia: estoqueAtual.referencia || null,
                   unidade_medida: estoqueAtual.unidade_medida || 'Unid',
@@ -467,7 +466,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
         }
       }
     }
-    // 2. LÓGICA DE CRIAÇÃO (ENTRADAS) E LIGAÇÃO AO CROSSDOCKING
+    // 2. LÓGICA DE CRIAÇÃO (ENTRADAS) E LIGAÇÃO AO CROSSDOCKING (FILA)
     else if (solicitacao.tipo === 'Entrada') {
       const { data: itensEntrada } = await supabase
         .from('solicitacoes_itens')
@@ -476,7 +475,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
       if (itensEntrada && itensEntrada.length > 0) {
         
-        // ✨ AQUI: CAMPOS FALTANTES QUE FALTAVAM REGISTRAR NO ESTOQUE!
         const novoEstoqueLotes = itensEntrada.map(item => ({
           material_id: item.material_id || null,
           desenho_sap: item.desenho_sap_manual || item.desenho_sap || '-',
@@ -490,7 +488,6 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
           alocacao: item.alocacao || 'Pendente',
           quantidade_disponivel: item.quantidade_solicitada,
           status: 'Disponível',
-          
           fornecedor: item.fornecedor || null,
           referencia: item.referencia || null,
           unidade_medida: item.unidade_medida_manual || 'Unid',
@@ -508,7 +505,7 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
 
         if (erroEstoque) throw erroEstoque;
 
-        // MÁGICA DO CROSSDOCKING
+        // ✨ MÁGICA DO CROSSDOCKING (SISTEMA DE FILA FIFO)
         const nfParaProcurar = itensEntrada[0].nf_entrada;
         
         if (nfParaProcurar && nfParaProcurar !== 'SEM-NF') {
@@ -521,13 +518,23 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
               solicitacoes_itens (*)
             `)
             .eq('tipo', 'Crossdocking')
-            .eq('notas_fiscais.numero_nf', nfParaProcurar);
+            .eq('status', 'Pendente') // ✨ FILTRA: Apenas os que estão à espera
+            .eq('notas_fiscais.numero_nf', nfParaProcurar)
+            .order('created_at', { ascending: true }); // ✨ ORDENA: O mais antigo primeiro (Fila real)
 
           if (crossdockingsPendentes && crossdockingsPendentes.length > 0) {
             for (const cross of crossdockingsPendentes) {
+              
+              // ✨ VERIFICAÇÃO DE FILA: Se este pedido já consumiu uma Entrada antes, ignoramos e saltamos para o próximo da fila!
+              if (cross.observacoes && cross.observacoes.includes('[NF VINCULADA]')) {
+                continue;
+              }
+
+              let vinculouAlgo = false;
               const isParcial = cross.observacoes && cross.observacoes.includes('[Saída Parcial]');
               
               if (!isParcial) {
+                // Crossdocking Total (Libera tudo de uma vez)
                 const itensParaCrossdocking = itensEntrada.map((item, index) => ({
                   solicitacao_id: cross.id, 
                   estoque_id: estoqueCriado ? estoqueCriado[index].id : null, 
@@ -547,8 +554,10 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                   alocacao: 'CROSSDOCKING (TOTAL)' 
                 }));
                 await supabase.from('solicitacoes_itens').insert(itensParaCrossdocking);
+                vinculouAlgo = true;
               } 
               else {
+                // Crossdocking Parcial (Cruza os SAPs que vieram na Entrada com os que foram pedidos)
                 const itensPedidosCross = cross.solicitacoes_itens; 
                 
                 for (const pedido of itensPedidosCross) {
@@ -564,8 +573,19 @@ const atualizarStatus = async (id, statusRecebido, motivoRecusa, numeroPL) => {
                         alocacao: 'Vinculado à NF (Aguardando Aprovação)' 
                       })
                       .eq('id', pedido.id);
+                    
+                    vinculouAlgo = true;
                   }
                 }
+              }
+
+              // ✨ FECHA A FILA: Se a Entrada serviu para este Crossdocking, nós trancamo-lo para que a próxima Entrada com a mesma NF atenda a próxima pessoa da fila!
+              if (vinculouAlgo) {
+                await supabase.from('solicitacoes').update({
+                  observacoes: (cross.observacoes || '') + '\n[NF VINCULADA]'
+                }).eq('id', cross.id);
+                
+                break; // Sai do loop! Uma Entrada só alimenta um Crossdocking.
               }
             }
           }
